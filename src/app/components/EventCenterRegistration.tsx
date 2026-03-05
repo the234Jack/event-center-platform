@@ -138,7 +138,9 @@ export default function EventCenterRegistration({
       const facilities = formData.facilities.filter((f) => f.selected).map((f) => f.name);
       const maxCapacity = formData.halls.reduce((max, h) => Math.max(max, parseInt(h.seatingCapacity) || 0), 0);
 
+      const venueId = crypto.randomUUID();
       const { data: venue, error: venueError } = await supabase.from('venues').insert({
+        id: venueId,
         name: formData.centerName,
         description: formData.description,
         state: formData.state,
@@ -156,6 +158,7 @@ export default function EventCenterRegistration({
       if (formData.halls.length > 0) {
         const { error: hallsError } = await supabase.from('halls').insert(
           formData.halls.map((h) => ({
+            id: crypto.randomUUID(),
             venue_id: venue.id,
             name: h.name,
             type: h.type,
