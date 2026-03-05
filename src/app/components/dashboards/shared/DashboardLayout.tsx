@@ -6,11 +6,11 @@ import { useAuth } from '../../../context/AuthContext';
 import {
   Building2, LogOut, Menu, LayoutDashboard, Calendar, Heart, User,
   ClipboardList, Users, BarChart3, Home, TrendingUp,
-  CheckSquare, BookOpen, Bell,
+  CheckSquare, BookOpen, Bell, Shield,
 } from 'lucide-react';
 import { cn } from '../../ui/utils';
 
-type Role = 'client' | 'staff' | 'owner';
+type Role = 'client' | 'staff' | 'owner' | 'admin';
 
 interface NavItem {
   id: string;
@@ -38,6 +38,11 @@ const NAV_ITEMS: Record<Role, NavItem[]> = {
     { id: 'analytics', label: 'Analytics', icon: <TrendingUp className="h-4 w-4" /> },
     { id: 'staff', label: 'Staff Management', icon: <Users className="h-4 w-4" /> },
   ],
+  admin: [
+    { id: 'overview', label: 'Overview', icon: <LayoutDashboard className="h-4 w-4" /> },
+    { id: 'venues', label: 'Venue Approvals', icon: <Building2 className="h-4 w-4" /> },
+    { id: 'users', label: 'User Management', icon: <Users className="h-4 w-4" /> },
+  ],
 };
 
 const ROLE_CONFIG: Record<Role, { gradient: string; activeClass: string; avatarGradient: string; label: string; badgeClass: string }> = {
@@ -61,6 +66,13 @@ const ROLE_CONFIG: Record<Role, { gradient: string; activeClass: string; avatarG
     avatarGradient: 'from-green-500 to-emerald-700',
     label: 'Owner Portal',
     badgeClass: 'bg-green-100 text-green-700',
+  },
+  admin: {
+    gradient: 'from-slate-700 to-slate-900',
+    activeClass: 'bg-slate-700/10 text-slate-800 font-semibold',
+    avatarGradient: 'from-slate-600 to-slate-800',
+    label: 'Admin Portal',
+    badgeClass: 'bg-slate-100 text-slate-700',
   },
 };
 

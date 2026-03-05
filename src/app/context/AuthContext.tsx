@@ -87,6 +87,7 @@ export function dashboardPath(role: UserRole): string {
     client: '/dashboard/client',
     staff: '/dashboard/staff',
     owner: '/dashboard/owner',
+    admin: '/dashboard/admin',
   };
   return map[role];
 }

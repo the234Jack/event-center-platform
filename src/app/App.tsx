@@ -17,6 +17,7 @@ import EventCenterRegistration from './components/EventCenterRegistration';
 import ClientDashboard from './components/dashboards/ClientDashboard';
 import StaffDashboard from './components/dashboards/StaffDashboard';
 import OwnerDashboard from './components/dashboards/OwnerDashboard';
+import AdminDashboard from './components/dashboards/AdminDashboard';
 
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -112,6 +113,15 @@ function AppRoutes() {
         element={
           <PrivateRoute allowedRole="owner">
             <OwnerDashboard />
+          </PrivateRoute>
+        }
+      />
+
+      <Route
+        path="/dashboard/admin"
+        element={
+          <PrivateRoute allowedRole="admin">
+            <AdminDashboard />
           </PrivateRoute>
         }
       />

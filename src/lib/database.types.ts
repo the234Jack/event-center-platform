@@ -1,4 +1,4 @@
-export type UserRole = 'client' | 'staff' | 'owner';
+export type UserRole = 'client' | 'staff' | 'owner' | 'admin';
 export type EventType = 'wedding' | 'conference' | 'party' | 'outdoor' | 'corporate' | 'banquet';
 export type BookingStatus = 'pending' | 'confirmed' | 'cancelled';
 export type HallType = 'indoor' | 'outdoor' | 'mixed';
