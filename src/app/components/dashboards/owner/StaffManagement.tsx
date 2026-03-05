@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '../../ui/button';
 import { Switch } from '../../ui/switch';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '../../ui/alert-dialog';
-import { Plus, Trash2, Users, Phone } from 'lucide-react';
+import { Plus, Trash2, Users, Phone, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 import AddStaffModal, { StaffMember } from './AddStaffModal';
 import { useAuth } from '../../../context/AuthContext';
@@ -88,12 +89,21 @@ export default function StaffManagement() {
           <h2 className="text-xl font-bold text-gray-900">Staff Management</h2>
           <p className="text-sm text-gray-500">{staff.length} members · {activeCount} active</p>
         </div>
-        <Button className="bg-blue-600 hover:bg-blue-700 text-white" size="sm" onClick={() => setModalOpen(true)}>
+        <Button className="bg-blue-600 hover:bg-blue-700 text-white" size="sm" onClick={() => setModalOpen(true)} disabled={!venueId}>
           <Plus className="h-4 w-4 mr-1.5" /> Invite Staff
         </Button>
       </div>
 
-      {staff.length === 0 ? (
+      {!venueId ? (
+        <div className="text-center py-16 bg-white rounded-xl border">
+          <Building2 className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-800 font-semibold">No event center registered yet</p>
+          <p className="text-sm text-gray-500 mt-1 mb-4">You need to register an event center before you can invite staff.</p>
+          <Button asChild className="bg-green-600 hover:bg-green-700 text-white">
+            <Link to="/register/event-center">Register Event Center</Link>
+          </Button>
+        </div>
+      ) : staff.length === 0 ? (
         <div className="text-center py-16">
           <Users className="h-12 w-12 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500 font-medium">No staff members yet</p>
