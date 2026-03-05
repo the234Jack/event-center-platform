@@ -42,6 +42,7 @@ const NAV_ITEMS: Record<Role, NavItem[]> = {
     { id: 'overview', label: 'Overview', icon: <LayoutDashboard className="h-4 w-4" /> },
     { id: 'venues', label: 'Venue Approvals', icon: <Building2 className="h-4 w-4" /> },
     { id: 'users', label: 'User Management', icon: <Users className="h-4 w-4" /> },
+    { id: 'staff', label: 'Staff Management', icon: <Shield className="h-4 w-4" /> },
   ],
 };
 

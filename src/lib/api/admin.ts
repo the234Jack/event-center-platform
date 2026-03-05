@@ -57,3 +57,22 @@ export async function updateUserRole(id: string, role: string) {
   const { error } = await supabase.from('profiles').update({ role }).eq('id', id);
   if (error) throw error;
 }
+
+export async function fetchAllStaff() {
+  const { data, error } = await supabase
+    .from('staff_members')
+    .select('*, profiles!user_id(full_name, phone, state), venues!venue_id(name, city)')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function adminUpdateStaffStatus(id: string, status: 'active' | 'inactive') {
+  const { error } = await supabase.from('staff_members').update({ status }).eq('id', id);
+  if (error) throw error;
+}
+
+export async function adminDeleteStaff(id: string) {
+  const { error } = await supabase.from('staff_members').delete().eq('id', id);
+  if (error) throw error;
+}

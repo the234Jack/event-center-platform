@@ -10,7 +10,7 @@ export default function FeaturedVenuesSection() {
 
   useEffect(() => {
     fetchFeaturedVenues()
-      .then((rows) => setFeatured(rows.slice(0, 6).map((r) => adaptVenue(r))))
+      .then((rows) => setFeatured(rows.slice(0, 6).map((r) => adaptVenue(r, r.halls ?? []))))
       .catch(() => {});
   }, []);
 

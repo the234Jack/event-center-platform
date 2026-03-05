@@ -54,7 +54,7 @@ export default function BrowseVenuesPage() {
 
   useEffect(() => {
     fetchVenues()
-      .then((rows) => setAllVenues(rows.map((r) => adaptVenue(r))))
+      .then((rows) => setAllVenues(rows.map((r) => adaptVenue(r, r.halls ?? []))))
       .catch(() => {});
   }, []);
 

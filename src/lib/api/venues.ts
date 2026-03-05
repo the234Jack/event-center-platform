@@ -66,8 +66,8 @@ export interface VenueWithHalls extends VenueRow { halls: HallRow[]; }
 
 export async function fetchVenues(filters?: {
   city?: string; category?: string; maxCapacity?: number; maxPrice?: number; featured?: boolean;
-}) {
-  let query = supabase.from('venues').select('*').order('rating', { ascending: false });
+}): Promise<VenueWithHalls[]> {
+  let query = supabase.from('venues').select('*, halls(*)').eq('verified', true).order('rating', { ascending: false });
   if (filters?.city) query = query.ilike('city', filters.city);
   if (filters?.category) query = query.eq('category', filters.category);
   if (filters?.maxCapacity) query = query.gte('max_capacity', filters.maxCapacity);
@@ -75,7 +75,7 @@ export async function fetchVenues(filters?: {
   if (filters?.featured) query = query.eq('featured', true);
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []) as VenueRow[];
+  return (data ?? []) as VenueWithHalls[];
 }
 
 export async function fetchVenueById(id: string): Promise<VenueWithHalls | null> {
@@ -87,14 +87,14 @@ export async function fetchVenueById(id: string): Promise<VenueWithHalls | null>
   return { ...(venueRes.data as VenueRow), halls: (hallsRes.data ?? []) as HallRow[] };
 }
 
-export async function fetchSimilarVenues(excludeId: string, city: string, limit = 3): Promise<VenueRow[]> {
+export async function fetchSimilarVenues(excludeId: string, city: string, limit = 3): Promise<VenueWithHalls[]> {
   const { data } = await supabase
-    .from('venues').select('*')
-    .eq('city', city).neq('id', excludeId)
+    .from('venues').select('*, halls(*)')
+    .eq('verified', true).eq('city', city).neq('id', excludeId)
     .order('rating', { ascending: false }).limit(limit);
-  return (data ?? []) as VenueRow[];
+  return (data ?? []) as VenueWithHalls[];
 }
 
-export async function fetchFeaturedVenues(): Promise<VenueRow[]> {
+export async function fetchFeaturedVenues(): Promise<VenueWithHalls[]> {
   return fetchVenues({ featured: true });
 }
