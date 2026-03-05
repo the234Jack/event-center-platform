@@ -1,62 +1,48 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../../ui/button';
-import { Badge } from '../../ui/badge';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { Textarea } from '../../ui/textarea';
 import { Checkbox } from '../../ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
-import { Building2, MapPin, Plus, Edit, Star, DollarSign, Users, BookOpen } from 'lucide-react';
+import { Building2, MapPin, Plus, Edit, Clock } from 'lucide-react';
 import { toast } from 'sonner';
-import { venues } from '../../../../data/venues';
+import { useAuth } from '../../../context/AuthContext';
+import { supabase } from '../../../../lib/supabase';
 
 const ALL_FACILITIES = ['Air Conditioning', 'Parking', 'Generator', 'Stage', 'Sound System', 'Lighting', 'Tables & Chairs', 'Toilets', 'Catering Kitchen', 'Dressing Room', 'Security', 'WiFi'];
 
-interface EventCenter {
+interface VenueRow {
   id: string;
   name: string;
   city: string;
   state: string;
-  description: string;
+  description: string | null;
   facilities: string[];
-  phone: string;
-  email: string;
-  hallCount: number;
-  totalBookings: number;
-  totalRevenue: number;
-  status: 'active' | 'pending';
-  image: string;
-  rating: number;
+  phone: string | null;
+  email: string | null;
+  cover_image: string | null;
+  verified: boolean;
+  max_capacity: number | null;
+  halls: { id: string }[];
 }
 
-const OWNER_CENTERS: EventCenter[] = [
-  {
-    id: 'venue-1', name: 'Grand Palace Event Center', city: 'Ikeja', state: 'Lagos', description: 'A premier event center offering world-class facilities for weddings, corporate events, and celebrations of all kinds.',
-    facilities: ['Air Conditioning', 'Parking', 'Generator', 'Stage', 'Sound System'], phone: '+234 803 100 0001', email: 'info@grandpalace.ng',
-    hallCount: 3, totalBookings: 48, totalRevenue: 4800000, status: 'active', image: venues[0]?.coverImage ?? 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=400', rating: 4.8,
-  },
-  {
-    id: 'venue-2', name: 'Elite Events Hub', city: 'Victoria Island', state: 'Lagos', description: 'Modern event hub in the heart of Victoria Island, perfect for corporate gatherings and high-profile events.',
-    facilities: ['Air Conditioning', 'Parking', 'WiFi', 'Stage', 'Sound System', 'Lighting'], phone: '+234 803 200 0002', email: 'info@eliteevents.ng',
-    hallCount: 4, totalBookings: 62, totalRevenue: 6500000, status: 'active', image: venues[1]?.coverImage ?? 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400', rating: 4.6,
-  },
-  {
-    id: 'venue-7', name: 'Ocean View Events', city: 'Lekki', state: 'Lagos', description: 'Stunning waterfront venue with panoramic views, ideal for outdoor events and exclusive gatherings.',
-    facilities: ['Parking', 'Sound System', 'Lighting', 'Security'], phone: '+234 803 300 0007', email: 'info@oceanview.ng',
-    hallCount: 2, totalBookings: 18, totalRevenue: 1800000, status: 'pending', image: 'https://images.unsplash.com/photo-1600585154363-67eb9e2e2099?w=400', rating: 4.3,
-  },
-];
-
-interface EditDialogProps {
-  center: EventCenter;
+function EditDialog({ venue, open, onOpenChange, onSave }: {
+  venue: VenueRow;
   open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSave: (updated: EventCenter) => void;
-}
-
-function EditDialog({ center, open, onOpenChange, onSave }: EditDialogProps) {
-  const [form, setForm] = useState({ ...center });
+  onOpenChange: (o: boolean) => void;
+  onSave: (id: string, updates: Partial<VenueRow>) => void;
+}) {
+  const [form, setForm] = useState({
+    name: venue.name,
+    city: venue.city,
+    phone: venue.phone ?? '',
+    email: venue.email ?? '',
+    description: venue.description ?? '',
+    facilities: venue.facilities ?? [],
+  });
+  const [saving, setSaving] = useState(false);
 
   const toggleFacility = (f: string) => {
     setForm((p) => ({
@@ -65,22 +51,27 @@ function EditDialog({ center, open, onOpenChange, onSave }: EditDialogProps) {
     }));
   };
 
-  const handleSave = () => {
-    onSave(form);
-    toast.success('Event center details updated!');
+  const handleSave = async () => {
+    setSaving(true);
+    const { error } = await supabase.from('venues').update({
+      name: form.name, city: form.city, phone: form.phone,
+      email: form.email, description: form.description, facilities: form.facilities,
+    }).eq('id', venue.id);
+    setSaving(false);
+    if (error) { toast.error('Failed to save changes.'); return; }
+    toast.success('Event center updated!');
+    onSave(venue.id, { name: form.name, city: form.city, phone: form.phone, email: form.email, description: form.description, facilities: form.facilities });
     onOpenChange(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Edit Event Center</DialogTitle>
-        </DialogHeader>
+        <DialogHeader><DialogTitle>Edit Event Center</DialogTitle></DialogHeader>
         <div className="space-y-4 py-2">
           <div>
-            <Label htmlFor="centerName">Venue Name</Label>
-            <Input id="centerName" className="mt-1" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
+            <Label>Venue Name</Label>
+            <Input className="mt-1" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -114,7 +105,9 @@ function EditDialog({ center, open, onOpenChange, onSave }: EditDialogProps) {
         </div>
         <div className="flex gap-3 pt-2">
           <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button className="flex-1 bg-blue-600 hover:bg-blue-700 text-white" onClick={handleSave}>Save Changes</Button>
+          <Button className="flex-1 bg-blue-600 hover:bg-blue-700 text-white" onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving...' : 'Save Changes'}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -122,21 +115,36 @@ function EditDialog({ center, open, onOpenChange, onSave }: EditDialogProps) {
 }
 
 export default function MyEventCenters() {
-  const [centers, setCenters] = useState<EventCenter[]>(OWNER_CENTERS);
-  const [editCenter, setEditCenter] = useState<EventCenter | null>(null);
-  const [editOpen, setEditOpen] = useState(false);
+  const { user } = useAuth();
+  const [venues, setVenues] = useState<VenueRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editVenue, setEditVenue] = useState<VenueRow | null>(null);
 
-  const handleSave = (updated: EventCenter) => {
-    setCenters((prev) => prev.map((c) => c.id === updated.id ? updated : c));
-    setEditCenter(null);
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase
+      .from('venues')
+      .select('id, name, city, state, description, facilities, phone, email, cover_image, verified, max_capacity, halls(id)')
+      .eq('owner_id', user.id)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => { setVenues((data ?? []) as VenueRow[]); setLoading(false); });
+  }, [user?.id]);
+
+  const handleSave = (id: string, updates: Partial<VenueRow>) => {
+    setVenues((prev) => prev.map((v) => v.id === id ? { ...v, ...updates } : v));
+    setEditVenue(null);
   };
+
+  if (loading) return (
+    <div className="space-y-3">{[...Array(2)].map((_, i) => <div key={i} className="h-40 bg-gray-100 animate-pulse rounded-xl" />)}</div>
+  );
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-bold text-gray-900">My Event Centers</h2>
-          <p className="text-sm text-gray-500">{centers.length} registered venues</p>
+          <p className="text-sm text-gray-500">{venues.length} registered venue{venues.length !== 1 ? 's' : ''}</p>
         </div>
         <Link to="/register/event-center">
           <Button className="bg-blue-600 hover:bg-blue-700 text-white" size="sm">
@@ -145,74 +153,82 @@ export default function MyEventCenters() {
         </Link>
       </div>
 
-      <div className="space-y-5">
-        {centers.map((center) => (
-          <div key={center.id} className="bg-white rounded-xl border overflow-hidden hover:shadow-md transition-shadow">
-            <div className="flex flex-col md:flex-row">
-              {/* Image */}
-              <div className="md:w-48 h-40 md:h-auto flex-shrink-0">
-                <img src={center.image} alt={center.name} className="w-full h-full object-cover"
-                  onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=400'; }} />
-              </div>
-
-              {/* Info */}
-              <div className="flex-1 p-5">
-                <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-bold text-gray-900">{center.name}</h3>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${center.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                        {center.status.charAt(0).toUpperCase() + center.status.slice(1)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1 text-sm text-gray-500">
-                      <MapPin className="h-3.5 w-3.5" /> {center.city}, {center.state}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 text-yellow-500">
-                    <Star className="h-4 w-4 fill-current" />
-                    <span className="font-semibold text-gray-700 text-sm">{center.rating}</span>
-                  </div>
+      {venues.length === 0 ? (
+        <div className="text-center py-16 bg-white rounded-xl border">
+          <Building2 className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-800 font-semibold">No event centers yet</p>
+          <p className="text-sm text-gray-500 mt-1 mb-4">Register your first event center to start receiving bookings.</p>
+          <Link to="/register/event-center">
+            <Button className="bg-green-600 hover:bg-green-700 text-white">Register Event Center</Button>
+          </Link>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {venues.map((venue) => (
+            <div key={venue.id} className="bg-white rounded-xl border overflow-hidden hover:shadow-md transition-shadow">
+              <div className="flex flex-col md:flex-row">
+                <div className="md:w-48 h-40 md:h-auto flex-shrink-0 bg-gray-100 flex items-center justify-center">
+                  {venue.cover_image ? (
+                    <img src={venue.cover_image} alt={venue.name} className="w-full h-full object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  ) : (
+                    <Building2 className="h-10 w-10 text-gray-300" />
+                  )}
                 </div>
 
-                <p className="text-sm text-gray-600 mb-4 line-clamp-2">{center.description}</p>
+                <div className="flex-1 p-5">
+                  <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-bold text-gray-900">{venue.name}</h3>
+                        {venue.verified ? (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">Active</span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700 flex items-center gap-1">
+                            <Clock className="h-3 w-3" /> Pending Approval
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 text-sm text-gray-500">
+                        <MapPin className="h-3.5 w-3.5" /> {venue.city}, {venue.state}
+                      </div>
+                    </div>
+                  </div>
 
-                <div className="grid grid-cols-3 gap-3 mb-4 text-sm">
-                  <div className="text-center p-2 bg-blue-50 rounded-xl">
-                    <p className="font-bold text-blue-700">{center.hallCount}</p>
-                    <p className="text-xs text-blue-600">Halls</p>
-                  </div>
-                  <div className="text-center p-2 bg-green-50 rounded-xl">
-                    <p className="font-bold text-green-700">{center.totalBookings}</p>
-                    <p className="text-xs text-green-600">Bookings</p>
-                  </div>
-                  <div className="text-center p-2 bg-purple-50 rounded-xl">
-                    <p className="font-bold text-purple-700">₦{(center.totalRevenue / 1000000).toFixed(1)}M</p>
-                    <p className="text-xs text-purple-600">Revenue</p>
-                  </div>
-                </div>
+                  {venue.description && <p className="text-sm text-gray-600 mb-4 line-clamp-2">{venue.description}</p>}
 
-                <div className="flex gap-2 flex-wrap">
-                  <Button size="sm" variant="outline" onClick={() => { setEditCenter(center); setEditOpen(true); }}>
+                  <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
+                    <div className="text-center p-2 bg-blue-50 rounded-xl">
+                      <p className="font-bold text-blue-700">{venue.halls?.length ?? 0}</p>
+                      <p className="text-xs text-blue-600">Halls</p>
+                    </div>
+                    <div className="text-center p-2 bg-purple-50 rounded-xl">
+                      <p className="font-bold text-purple-700">{venue.max_capacity?.toLocaleString() ?? '—'}</p>
+                      <p className="text-xs text-purple-600">Max Capacity</p>
+                    </div>
+                  </div>
+
+                  {!venue.verified && (
+                    <p className="text-xs text-amber-700 mb-3 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                      Awaiting admin approval before appearing on the public listing.
+                    </p>
+                  )}
+
+                  <Button size="sm" variant="outline" onClick={() => setEditVenue(venue)}>
                     <Edit className="h-4 w-4 mr-1.5" /> Edit Details
                   </Button>
-                  <Link to={`/venue/${center.id}`}>
-                    <Button size="sm" variant="outline">
-                      <Building2 className="h-4 w-4 mr-1.5" /> View Listing
-                    </Button>
-                  </Link>
                 </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
-      {editCenter && (
+      {editVenue && (
         <EditDialog
-          center={editCenter}
-          open={editOpen}
-          onOpenChange={setEditOpen}
+          venue={editVenue}
+          open={!!editVenue}
+          onOpenChange={(o) => { if (!o) setEditVenue(null); }}
           onSave={handleSave}
         />
       )}

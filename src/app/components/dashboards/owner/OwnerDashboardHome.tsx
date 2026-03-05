@@ -1,30 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Badge } from '../../ui/badge';
 import StatCard from '../shared/StatCard';
 import { DollarSign, BookOpen, Building2, Users, TrendingUp, Check, X, Eye, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '../../../context/AuthContext';
+import { supabase } from '../../../../lib/supabase';
+import { fetchOwnerBookings, updateBookingStatus } from '../../../../lib/api/bookings';
 
 const REVENUE_DATA = [
-  { month: 'Jan', revenue: 580000, prev: 420000 },
-  { month: 'Feb', revenue: 720000, prev: 510000 },
-  { month: 'Mar', revenue: 650000, prev: 480000 },
-  { month: 'Apr', revenue: 890000, prev: 620000 },
-  { month: 'May', revenue: 1050000, prev: 750000 },
-  { month: 'Jun', revenue: 980000, prev: 840000 },
+  { month: 'Jan', revenue: 0, prev: 0 },
+  { month: 'Feb', revenue: 0, prev: 0 },
+  { month: 'Mar', revenue: 0, prev: 0 },
+  { month: 'Apr', revenue: 0, prev: 0 },
+  { month: 'May', revenue: 0, prev: 0 },
+  { month: 'Jun', revenue: 0, prev: 0 },
 ];
 
 const BOOKINGS_DATA = [
-  { month: 'Jan', bookings: 12 },
-  { month: 'Feb', bookings: 18 },
-  { month: 'Mar', bookings: 14 },
-  { month: 'Apr', bookings: 22 },
-  { month: 'May', bookings: 28 },
-  { month: 'Jun', bookings: 25 },
+  { month: 'Jan', bookings: 0 }, { month: 'Feb', bookings: 0 },
+  { month: 'Mar', bookings: 0 }, { month: 'Apr', bookings: 0 },
+  { month: 'May', bookings: 0 }, { month: 'Jun', bookings: 0 },
 ];
 
+const formatNaira = (value: number) => `₦${(value / 1000).toFixed(0)}K`;
+
+interface Props {
+  onViewRequests: () => void;
+}
+
 interface PendingRequest {
-  id: number;
+  id: string;
   clientName: string;
   venueName: string;
   eventDate: string;
@@ -34,35 +39,63 @@ interface PendingRequest {
   status: 'pending' | 'accepted' | 'rejected';
 }
 
-const INITIAL_PENDING: PendingRequest[] = [
-  { id: 1, clientName: 'Adaeze Nwachukwu', venueName: 'Grand Palace Event Center', eventDate: '2026-05-10', eventType: 'Wedding', guestCount: 300, estimatedBudget: 350000, status: 'pending' },
-  { id: 2, clientName: 'Babatunde Fashola', venueName: 'Elite Events Hub', eventDate: '2026-05-22', eventType: 'Corporate', guestCount: 100, estimatedBudget: 150000, status: 'pending' },
-  { id: 3, clientName: 'Chioma Obi', venueName: 'Grand Palace Event Center', eventDate: '2026-06-08', eventType: 'Birthday', guestCount: 150, estimatedBudget: 120000, status: 'pending' },
-  { id: 4, clientName: 'Yusuf Abdullahi', venueName: 'Ocean View Events', eventDate: '2026-06-15', eventType: 'Conference', guestCount: 80, estimatedBudget: 90000, status: 'pending' },
-  { id: 5, clientName: 'Ngozi Eze', venueName: 'Elite Events Hub', eventDate: '2026-07-01', eventType: 'Graduation', guestCount: 200, estimatedBudget: 180000, status: 'pending' },
-];
-
-const formatNaira = (value: number) => `₦${(value / 1000).toFixed(0)}K`;
-
-interface Props {
-  onViewRequests: () => void;
-}
-
 export default function OwnerDashboardHome({ onViewRequests }: Props) {
-  const [requests, setRequests] = useState<PendingRequest[]>(INITIAL_PENDING);
+  const { user } = useAuth();
+  const [venueCount, setVenueCount] = useState(0);
+  const [staffCount, setStaffCount] = useState(0);
+  const [requests, setRequests] = useState<PendingRequest[]>([]);
+  const [totalRevenue, setTotalRevenue] = useState(0);
 
-  const handleAccept = (id: number) => {
-    setRequests((prev) => prev.map((r) => r.id === id ? { ...r, status: 'accepted' } : r));
-    toast.success('Booking request accepted! Client will be notified.');
+  useEffect(() => {
+    if (!user?.id) return;
+
+    // Fetch owner's venues
+    supabase.from('venues').select('id').eq('owner_id', user.id).then(({ data: venueData }) => {
+      const vIds = (venueData ?? []).map((v: any) => v.id);
+      setVenueCount(vIds.length);
+
+      if (vIds.length > 0) {
+        supabase.from('staff_members').select('id', { count: 'exact', head: true }).in('venue_id', vIds)
+          .then(({ count }) => setStaffCount(count ?? 0));
+      }
+    });
+
+    // Fetch bookings for stats and pending requests
+    fetchOwnerBookings(user.id).then((rows: any[]) => {
+      const revenue = rows.filter((r) => r.status === 'confirmed').reduce((sum: number, r: any) => sum + (r.total_cost ?? 0), 0);
+      setTotalRevenue(revenue);
+
+      setRequests(rows.map((r) => ({
+        id: r.id,
+        clientName: r.profiles?.full_name ?? 'Unknown Client',
+        venueName: r.venues?.name ?? '',
+        eventDate: r.event_date,
+        eventType: r.event_type,
+        guestCount: r.guest_count,
+        estimatedBudget: r.total_cost ?? 0,
+        status: r.status === 'confirmed' ? 'accepted' : r.status === 'cancelled' ? 'rejected' : 'pending',
+      })));
+    }).catch(() => {});
+  }, [user?.id]);
+
+  const handleAccept = async (id: string) => {
+    try {
+      await updateBookingStatus(id, 'confirmed');
+      setRequests((prev) => prev.map((r) => r.id === id ? { ...r, status: 'accepted' } : r));
+      toast.success('Booking request accepted! Client will be notified.');
+    } catch { toast.error('Failed to accept booking.'); }
   };
 
-  const handleReject = (id: number) => {
-    setRequests((prev) => prev.map((r) => r.id === id ? { ...r, status: 'rejected' } : r));
-    toast.error('Booking request rejected.');
+  const handleReject = async (id: string) => {
+    try {
+      await updateBookingStatus(id, 'cancelled');
+      setRequests((prev) => prev.map((r) => r.id === id ? { ...r, status: 'rejected' } : r));
+      toast.error('Booking request rejected.');
+    } catch { toast.error('Failed to reject booking.'); }
   };
 
   const pendingCount = requests.filter((r) => r.status === 'pending').length;
-  const totalRevenue = REVENUE_DATA.reduce((sum, m) => sum + m.revenue, 0);
+  const activeBookings = requests.filter((r) => r.status === 'accepted').length;
 
   return (
     <div className="space-y-6">
@@ -80,13 +113,15 @@ export default function OwnerDashboardHome({ onViewRequests }: Props) {
             </div>
             <h2 className="text-2xl font-bold mb-1">Business Overview</h2>
             <p className="text-green-200 text-sm">
-              You have <span className="text-white font-semibold">{pendingCount} pending</span> booking request{pendingCount !== 1 ? 's' : ''} awaiting your response
+              {pendingCount > 0
+                ? <>You have <span className="text-white font-semibold">{pendingCount} pending</span> booking request{pendingCount !== 1 ? 's' : ''} awaiting your response</>
+                : 'No pending booking requests — all caught up!'}
             </p>
           </div>
           <div className="flex flex-col gap-2 text-right">
             <div>
-              <p className="text-green-200 text-xs">Revenue YTD</p>
-              <p className="text-white font-bold text-xl">₦{(totalRevenue / 1000000).toFixed(1)}M</p>
+              <p className="text-green-200 text-xs">Revenue (confirmed bookings)</p>
+              <p className="text-white font-bold text-xl">{totalRevenue > 0 ? `₦${(totalRevenue / 1000000).toFixed(1)}M` : '₦0'}</p>
             </div>
           </div>
         </div>
@@ -97,31 +132,25 @@ export default function OwnerDashboardHome({ onViewRequests }: Props) {
         <StatCard
           icon={<DollarSign className="h-5 w-5 text-white" />}
           label="Total Revenue"
-          value={`₦${(totalRevenue / 1000000).toFixed(1)}M`}
-          trend="+18% vs last year"
-          trendUp
+          value={totalRevenue > 0 ? `₦${(totalRevenue / 1000000).toFixed(1)}M` : '₦0'}
           iconBg="bg-gradient-to-br from-emerald-500 to-green-600"
         />
         <StatCard
           icon={<BookOpen className="h-5 w-5 text-white" />}
-          label="Active Bookings"
-          value="23"
-          trend="+5 this month"
-          trendUp
+          label="Accepted Bookings"
+          value={activeBookings.toString()}
           iconBg="bg-gradient-to-br from-blue-500 to-blue-600"
         />
         <StatCard
           icon={<Building2 className="h-5 w-5 text-white" />}
           label="Event Centers"
-          value="3"
+          value={venueCount.toString()}
           iconBg="bg-gradient-to-br from-violet-500 to-purple-600"
         />
         <StatCard
           icon={<Users className="h-5 w-5 text-white" />}
           label="Staff Members"
-          value="6"
-          trend="2 active events"
-          trendUp={false}
+          value={staffCount.toString()}
           iconBg="bg-gradient-to-br from-orange-500 to-amber-500"
         />
       </div>
@@ -219,16 +248,12 @@ export default function OwnerDashboardHome({ onViewRequests }: Props) {
                   </div>
                 </div>
                 <div className="flex gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => handleAccept(req.id)}
-                    className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
-                  >
+                  <button onClick={() => handleAccept(req.id)}
+                    className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                     <Check className="h-3.5 w-3.5" /> Accept
                   </button>
-                  <button
-                    onClick={() => handleReject(req.id)}
-                    className="flex items-center gap-1 border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
-                  >
+                  <button onClick={() => handleReject(req.id)}
+                    className="flex items-center gap-1 border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                     <X className="h-3.5 w-3.5" /> Reject
                   </button>
                 </div>
