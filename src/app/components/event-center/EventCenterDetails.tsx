@@ -24,10 +24,20 @@ export default function EventCenterDetails({ data, updateData, onNext }: EventCe
     'Yobe', 'Zamfara',
   ];
 
+  const VENUE_CATEGORIES = [
+    { value: 'general', label: 'General Event Center' },
+    { value: 'wedding', label: 'Wedding Venue' },
+    { value: 'corporate', label: 'Corporate / Conference' },
+    { value: 'party', label: 'Party Hall' },
+    { value: 'banquet', label: 'Banquet Hall' },
+    { value: 'outdoor', label: 'Outdoor Venue' },
+  ];
+
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
     if (!data.centerName.trim()) newErrors.centerName = 'Event center name is required';
+    if (!data.venueCategory) newErrors.venueCategory = 'Please select a venue category';
     if (!data.description.trim()) newErrors.description = 'Description is required';
     if (!data.state) newErrors.state = 'State is required';
     if (!data.lga.trim()) newErrors.lga = 'LGA is required';
@@ -98,6 +108,28 @@ export default function EventCenterDetails({ data, updateData, onNext }: EventCe
           <div className="flex items-center gap-1 text-sm text-red-500">
             <AlertCircle className="h-4 w-4" />
             <span>{errors.centerName}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label>
+          Venue Category <span className="text-red-500">*</span>
+        </Label>
+        <Select value={data.venueCategory} onValueChange={(value) => handleChange('venueCategory', value)}>
+          <SelectTrigger className={errors.venueCategory ? 'border-red-500' : ''}>
+            <SelectValue placeholder="Select venue category" />
+          </SelectTrigger>
+          <SelectContent>
+            {VENUE_CATEGORIES.map((cat) => (
+              <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {errors.venueCategory && (
+          <div className="flex items-center gap-1 text-sm text-red-500">
+            <AlertCircle className="h-4 w-4" />
+            <span>{errors.venueCategory}</span>
           </div>
         )}
       </div>

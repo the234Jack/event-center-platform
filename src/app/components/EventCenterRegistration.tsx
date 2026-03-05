@@ -19,6 +19,7 @@ interface EventCenterRegistrationProps {
 export interface EventCenterFormData {
   // Step 1: Event Center Details
   centerName: string;
+  venueCategory: string;
   description: string;
   state: string;
   lga: string;
@@ -79,6 +80,7 @@ export default function EventCenterRegistration({
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<EventCenterFormData>({
     centerName: '',
+    venueCategory: '',
     description: '',
     state: '',
     lga: '',
@@ -142,6 +144,7 @@ export default function EventCenterRegistration({
       const { data: venue, error: venueError } = await supabase.from('venues').insert({
         id: venueId,
         name: formData.centerName,
+        category: formData.venueCategory || 'general',
         description: formData.description,
         state: formData.state,
         city: formData.lga,
