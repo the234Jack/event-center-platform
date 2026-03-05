@@ -7,6 +7,9 @@ import EventCenterDetails from './event-center/EventCenterDetails';
 import HallDetails from './event-center/HallDetails';
 import FacilitiesServices from './event-center/FacilitiesServices';
 import ReviewSubmit from './event-center/ReviewSubmit';
+import { toast } from 'sonner';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 interface EventCenterRegistrationProps {
   onBack?: () => void;
@@ -71,8 +74,8 @@ export default function EventCenterRegistration({
   onComplete,
 }: EventCenterRegistrationProps) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const handleBack = onBack || (() => navigate('/register'));
-  const handleComplete = onComplete || (() => navigate('/login'));
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<EventCenterFormData>({
     centerName: '',
@@ -124,9 +127,54 @@ export default function EventCenterRegistration({
     setFormData((prev) => ({ ...prev, ...data }));
   };
 
-  const handleSubmit = () => {
-    console.log('Event Center Registration Submitted:', formData);
-    handleComplete();
+  const handleSubmit = async () => {
+    if (!user?.id) {
+      toast.error('You must be logged in to register an event center.');
+      navigate('/login');
+      return;
+    }
+
+    try {
+      const facilities = formData.facilities.filter((f) => f.selected).map((f) => f.name);
+      const maxCapacity = formData.halls.reduce((max, h) => Math.max(max, parseInt(h.seatingCapacity) || 0), 0);
+
+      const { data: venue, error: venueError } = await supabase.from('venues').insert({
+        name: formData.centerName,
+        description: formData.description,
+        state: formData.state,
+        city: formData.lga,
+        phone: formData.contactPhone,
+        email: formData.contactEmail,
+        facilities,
+        owner_id: user.id,
+        max_capacity: maxCapacity || null,
+        verified: false,
+      }).select('id').single();
+
+      if (venueError) throw venueError;
+
+      if (formData.halls.length > 0) {
+        const { error: hallsError } = await supabase.from('halls').insert(
+          formData.halls.map((h) => ({
+            venue_id: venue.id,
+            name: h.name,
+            type: h.type,
+            seating_capacity: parseInt(h.seatingCapacity) || null,
+            standing_capacity: parseInt(h.standingCapacity) || null,
+            price_per_hour: parseFloat(h.pricePerHour) || null,
+            price_per_day: parseFloat(h.pricePerDay) || null,
+            air_conditioned: h.airConditioned,
+          }))
+        );
+        if (hallsError) throw hallsError;
+      }
+
+      toast.success('Event center registered successfully! Awaiting admin approval.');
+      if (onComplete) { onComplete(); } else { navigate('/dashboard/owner'); }
+    } catch (err) {
+      console.error('Event center registration error:', err);
+      toast.error('Failed to register event center. Please try again.');
+    }
   };
 
   const renderStep = () => {
