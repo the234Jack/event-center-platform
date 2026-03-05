@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar, CheckSquare, Users, TrendingUp, ArrowRight, Clock, Zap } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from './shared/DashboardLayout';
@@ -6,6 +6,7 @@ import StatCard from './shared/StatCard';
 import StaffSchedule from './staff/StaffSchedule';
 import TaskManager from './staff/TaskManager';
 import ClientDirectory from './staff/ClientDirectory';
+import { supabase } from '../../../lib/supabase';
 
 const SECTION_TITLES: Record<string, string> = {
   overview: 'Overview',
@@ -13,11 +14,6 @@ const SECTION_TITLES: Record<string, string> = {
   tasks: 'Task Manager',
   clients: 'Client Directory',
 };
-
-const TODAY_EVENTS = [
-  { id: 1, eventName: 'Adeyemi-Okafor Wedding', time: '14:00 - 22:00', venueName: 'Grand Palace Event Center', status: 'upcoming' },
-  { id: 2, eventName: 'TechNigeria Summit 2026', time: '09:00 - 17:00', venueName: 'Elite Events Hub', status: 'in-progress' },
-];
 
 const STATUS_COLORS: Record<string, string> = {
   upcoming: 'bg-blue-100 text-blue-700 border border-blue-200',
@@ -34,6 +30,41 @@ const QUICK_ACTIONS = [
 export default function StaffDashboard() {
   const { user } = useAuth();
   const [section, setSection] = useState('overview');
+  const [todayEvents, setTodayEvents] = useState<any[]>([]);
+  const [pendingTasks, setPendingTasks] = useState(0);
+  const [eventsThisMonth, setEventsThisMonth] = useState(0);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase.from('staff_members').select('id, venue_id, venues(name)').eq('user_id', user.id).single()
+      .then(({ data: sm }) => {
+        if (!sm?.venue_id) return;
+        const today = new Date().toISOString().split('T')[0];
+        const monthStart = today.slice(0, 7) + '-01';
+        const monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0];
+
+        // Today's events
+        supabase.from('bookings').select('id, event_type, event_date, start_time, end_time, status, venues(name)')
+          .eq('venue_id', sm.venue_id).eq('event_date', today)
+          .then(({ data }) => setTodayEvents((data ?? []).map((b: any) => ({
+            id: b.id,
+            eventName: b.event_type + ' Event',
+            time: b.start_time && b.end_time ? `${b.start_time} - ${b.end_time}` : 'All Day',
+            venueName: (sm as any).venues?.name ?? '',
+            status: b.status === 'confirmed' ? 'upcoming' : 'upcoming',
+          }))));
+
+        // Events this month
+        supabase.from('bookings').select('id', { count: 'exact', head: true })
+          .eq('venue_id', sm.venue_id).gte('event_date', monthStart).lte('event_date', monthEnd)
+          .then(({ count }) => setEventsThisMonth(count ?? 0));
+
+        // Pending tasks
+        supabase.from('tasks').select('id', { count: 'exact', head: true })
+          .eq('staff_id', sm.id).eq('completed', false)
+          .then(({ count }) => setPendingTasks(count ?? 0));
+      }).catch(() => {});
+  }, [user?.id]);
 
   const firstName = user?.email?.split('@')[0] ?? 'Staff';
 
@@ -54,7 +85,7 @@ export default function StaffDashboard() {
               </div>
               <h2 className="text-2xl font-bold mb-1">Good day, {firstName}!</h2>
               <p className="text-purple-200 text-sm">
-                You have <span className="text-white font-semibold">{TODAY_EVENTS.length} event{TODAY_EVENTS.length !== 1 ? 's' : ''}</span> today. Stay on top of your schedule.
+                You have <span className="text-white font-semibold">{todayEvents.length} event{todayEvents.length !== 1 ? 's' : ''}</span> today. Stay on top of your schedule.
               </p>
             </div>
           </div>
@@ -64,29 +95,25 @@ export default function StaffDashboard() {
             <StatCard
               icon={<Calendar className="h-5 w-5 text-white" />}
               label="Today's Events"
-              value={TODAY_EVENTS.length}
+              value={todayEvents.length.toString()}
               iconBg="bg-gradient-to-br from-blue-500 to-blue-600"
             />
             <StatCard
               icon={<CheckSquare className="h-5 w-5 text-white" />}
               label="Pending Tasks"
-              value="6"
-              trend="2 high priority"
-              trendUp={false}
+              value={pendingTasks.toString()}
               iconBg="bg-gradient-to-br from-amber-500 to-orange-500"
             />
             <StatCard
               icon={<Users className="h-5 w-5 text-white" />}
-              label="Clients Managed"
-              value="12"
+              label="Events This Month"
+              value={eventsThisMonth.toString()}
               iconBg="bg-gradient-to-br from-purple-500 to-violet-600"
             />
             <StatCard
               icon={<TrendingUp className="h-5 w-5 text-white" />}
-              label="Events This Month"
-              value="14"
-              trend="+3 vs last month"
-              trendUp
+              label="My Role"
+              value="Staff"
               iconBg="bg-gradient-to-br from-emerald-500 to-green-600"
             />
           </div>
@@ -125,14 +152,14 @@ export default function StaffDashboard() {
               </button>
             </div>
             <div className="divide-y divide-gray-50">
-              {TODAY_EVENTS.length === 0 ? (
+              {todayEvents.length === 0 ? (
                 <div className="text-center py-10 text-gray-400">
                   <Calendar className="h-10 w-10 mx-auto mb-3 text-gray-200" />
                   <p className="font-medium">No events today</p>
                   <p className="text-sm mt-1">Enjoy your free time!</p>
                 </div>
               ) : (
-                TODAY_EVENTS.map((ev) => (
+                todayEvents.map((ev) => (
                   <div key={ev.id} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50/50 transition-colors">
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 rounded-xl bg-purple-50 flex items-center justify-center flex-shrink-0">

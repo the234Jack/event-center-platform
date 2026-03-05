@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../ui/button';
 import { Calendar, Star, Heart, DollarSign, Plus, Building2, Eye, ArrowRight, Sparkles } from 'lucide-react';
@@ -9,6 +9,7 @@ import MyBookings from './client/MyBookings';
 import BookingModal from './client/BookingModal';
 import SavedVenues from './client/SavedVenues';
 import ClientProfile from './client/ClientProfile';
+import { fetchClientBookings, fetchSavedVenues } from '../../../lib/api/bookings';
 
 const SECTION_TITLES: Record<string, string> = {
   overview: 'Overview',
@@ -16,12 +17,6 @@ const SECTION_TITLES: Record<string, string> = {
   saved: 'Saved Venues',
   profile: 'Profile Settings',
 };
-
-const RECENT_BOOKINGS = [
-  { id: 1, venueName: 'Grand Palace Event Center', hallName: 'Grand Ballroom', eventDate: '2026-05-15', eventType: 'Wedding', status: 'confirmed' as const },
-  { id: 2, venueName: 'Elite Events Hub', hallName: 'Conference Suite A', eventDate: '2026-06-20', eventType: 'Corporate', status: 'pending' as const },
-  { id: 3, venueName: 'Nicon Luxury Hall', hallName: 'Nicon Grand', eventDate: '2025-11-20', eventType: 'Wedding', status: 'confirmed' as const },
-];
 
 const STATUS_STYLES: Record<string, string> = {
   confirmed: 'bg-green-100 text-green-700 border border-green-200',
@@ -39,8 +34,33 @@ export default function ClientDashboard() {
   const { user } = useAuth();
   const [section, setSection] = useState('overview');
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
+  const [recentBookings, setRecentBookings] = useState<any[]>([]);
+  const [totalBookings, setTotalBookings] = useState(0);
+  const [upcomingCount, setUpcomingCount] = useState(0);
+  const [savedCount, setSavedCount] = useState(0);
+  const [totalSpent, setTotalSpent] = useState(0);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const today = new Date().toISOString().split('T')[0];
+    fetchClientBookings(user.id).then((rows) => {
+      setTotalBookings(rows.length);
+      setUpcomingCount(rows.filter((r: any) => (r.status === 'confirmed' || r.status === 'pending') && r.event_date >= today).length);
+      setTotalSpent(rows.filter((r: any) => r.status === 'confirmed').reduce((sum: number, r: any) => sum + (r.total_cost ?? 0), 0));
+      setRecentBookings(rows.slice(0, 3).map((r: any) => ({
+        id: r.id,
+        venueName: r.venues?.name ?? 'Unknown Venue',
+        hallName: r.halls?.name ?? '',
+        eventDate: r.event_date,
+        eventType: r.event_type,
+        status: r.status === 'confirmed' ? 'confirmed' : r.status === 'cancelled' ? 'cancelled' : 'pending',
+      })));
+    }).catch(() => {});
+    fetchSavedVenues(user.id).then((rows) => setSavedCount(rows.length)).catch(() => {});
+  }, [user?.id]);
 
   const firstName = user?.email?.split('@')[0] ?? 'there';
+  const totalSpentFormatted = totalSpent >= 1_000_000 ? `₦${(totalSpent / 1_000_000).toFixed(1)}M` : totalSpent >= 1_000 ? `₦${(totalSpent / 1_000).toFixed(0)}K` : `₦${totalSpent}`;
 
   return (
     <DashboardLayout role="client" activeSection={section} onSectionChange={setSection} title={SECTION_TITLES[section]}>
@@ -75,29 +95,25 @@ export default function ClientDashboard() {
             <StatCard
               icon={<Calendar className="h-5 w-5 text-white" />}
               label="Total Bookings"
-              value="12"
-              trend="+2 this month"
-              trendUp
+              value={totalBookings.toString()}
               iconBg="bg-gradient-to-br from-blue-500 to-blue-600"
             />
             <StatCard
               icon={<Calendar className="h-5 w-5 text-white" />}
               label="Upcoming Events"
-              value="3"
+              value={upcomingCount.toString()}
               iconBg="bg-gradient-to-br from-emerald-500 to-green-600"
             />
             <StatCard
               icon={<Heart className="h-5 w-5 text-white" />}
               label="Saved Venues"
-              value="5"
+              value={savedCount.toString()}
               iconBg="bg-gradient-to-br from-rose-500 to-red-600"
             />
             <StatCard
               icon={<DollarSign className="h-5 w-5 text-white" />}
               label="Total Spent"
-              value="₦1.4M"
-              trend="+₦180K this month"
-              trendUp
+              value={totalSpentFormatted}
               iconBg="bg-gradient-to-br from-violet-500 to-purple-600"
             />
           </div>
@@ -135,7 +151,12 @@ export default function ClientDashboard() {
               </button>
             </div>
             <div className="divide-y divide-gray-50">
-              {RECENT_BOOKINGS.map((b) => (
+              {recentBookings.length === 0 ? (
+                <div className="text-center py-10 text-gray-400">
+                  <Calendar className="h-10 w-10 mx-auto mb-3 text-gray-200" />
+                  <p className="font-medium text-sm">No bookings yet</p>
+                </div>
+              ) : recentBookings.map((b) => (
                 <div key={b.id} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50/50 transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">

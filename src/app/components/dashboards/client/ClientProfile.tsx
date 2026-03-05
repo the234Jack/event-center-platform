@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
@@ -9,6 +9,7 @@ import { Progress } from '../../ui/progress';
 import { User, Mail, Phone, MapPin, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../../../context/AuthContext';
+import { supabase } from '../../../../lib/supabase';
 
 const NIGERIAN_STATES = ['Lagos', 'Abuja (FCT)', 'Rivers', 'Oyo', 'Kano', 'Enugu', 'Anambra', 'Delta', 'Ogun', 'Kaduna'];
 const EVENT_TYPES = ['Wedding', 'Corporate', 'Birthday', 'Conference', 'Anniversary', 'Party', 'Graduation'];
@@ -25,14 +26,28 @@ interface ProfileData {
 export default function ClientProfile() {
   const { user } = useAuth();
   const [profile, setProfile] = useState<ProfileData>({
-    fullName: 'Chukwuemeka Okafor',
-    phone: '+234 803 456 7890',
-    state: 'Lagos',
-    city: 'Ikeja',
-    bio: 'Event enthusiast with a passion for memorable gatherings.',
-    preferredEventTypes: ['Wedding', 'Birthday'],
+    fullName: '',
+    phone: '',
+    state: '',
+    city: '',
+    bio: '',
+    preferredEventTypes: [],
   });
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase.from('profiles').select('full_name, phone, state, city').eq('id', user.id).single()
+      .then(({ data }) => {
+        if (data) setProfile((p) => ({
+          ...p,
+          fullName: data.full_name ?? '',
+          phone: data.phone ?? '',
+          state: data.state ?? '',
+          city: data.city ?? '',
+        }));
+      });
+  }, [user?.id]);
 
   const updateField = (field: keyof ProfileData, value: string) => {
     setProfile((p) => ({ ...p, [field]: value }));
@@ -50,12 +65,18 @@ export default function ClientProfile() {
   const completionFields = [profile.fullName, profile.phone, profile.state, profile.city, profile.bio, profile.preferredEventTypes.length > 0 ? 'ok' : ''];
   const completion = Math.round((completionFields.filter(Boolean).length / completionFields.length) * 100);
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (!user?.id) return;
     setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
-      toast.success('Profile updated successfully!');
-    }, 800);
+    const { error } = await supabase.from('profiles').update({
+      full_name: profile.fullName,
+      phone: profile.phone,
+      state: profile.state,
+      city: profile.city,
+    }).eq('id', user.id);
+    setSaving(false);
+    if (error) { toast.error('Failed to save profile.'); return; }
+    toast.success('Profile updated successfully!');
   };
 
   return (
