@@ -19,7 +19,7 @@ export default function UserManagement() {
   useEffect(() => {
     fetchAllUsers()
       .then(setUsers)
-      .catch(() => {})
+      .catch((e) => console.error('[admin] users load error:', e))
       .finally(() => setLoading(false));
   }, []);
 

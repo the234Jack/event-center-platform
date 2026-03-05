@@ -21,7 +21,7 @@ export default function AdminStaffManagement() {
 
   const load = () => {
     setLoading(true);
-    fetchAllStaff().then(setStaff).catch(() => {}).finally(() => setLoading(false));
+    fetchAllStaff().then(setStaff).catch((e) => console.error('[admin] staff load error:', e)).finally(() => setLoading(false));
   };
 
   useEffect(() => { load(); }, []);

@@ -47,21 +47,22 @@ export default function OwnerRegistrationForm({ onNavigateToEventCenter }: Owner
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signUp({ email: form.email, password: form.password });
+      const { data, error } = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password,
+        options: {
+          data: {
+            role: 'owner',
+            full_name: form.fullName,
+            phone: form.phone,
+            nin: form.nin,
+            business_name: form.businessName,
+            business_address: form.businessAddress,
+          },
+        },
+      });
       if (error) { setSubmitError(error.message); setLoading(false); return; }
       if (!data.user) { setSubmitError('Registration failed. Please try again.'); setLoading(false); return; }
-
-      const { error: profileError } = await supabase.from('profiles').insert({
-        id: data.user.id,
-        role: 'owner',
-        full_name: form.fullName,
-        phone: form.phone,
-        nin: form.nin,
-        business_name: form.businessName,
-        business_address: form.businessAddress,
-      });
-
-      if (profileError) { setSubmitError(profileError.message); setLoading(false); return; }
 
       onNavigateToEventCenter();
     } catch {

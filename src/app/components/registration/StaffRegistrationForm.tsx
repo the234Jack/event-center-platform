@@ -86,21 +86,22 @@ export default function StaffRegistrationForm({ onNavigateToLogin }: StaffRegist
         return;
       }
 
-      // 2. Create auth user
-      const { data, error } = await supabase.auth.signUp({ email: form.email, password: form.password });
+      // 2. Create auth user (trigger will auto-create profile from metadata)
+      const { data, error } = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password,
+        options: {
+          data: {
+            role: 'staff',
+            full_name: `${form.firstName} ${form.lastName}`,
+            phone: form.phone,
+          },
+        },
+      });
       if (error) { setSubmitError(error.message); setLoading(false); return; }
       if (!data.user) { setSubmitError('Registration failed. Please try again.'); setLoading(false); return; }
 
-      // 3. Create profile
-      const { error: profileError } = await supabase.from('profiles').insert({
-        id: data.user.id,
-        role: 'staff',
-        full_name: `${form.firstName} ${form.lastName}`,
-        phone: form.phone,
-      });
-      if (profileError) { setSubmitError(profileError.message); setLoading(false); return; }
-
-      // 4. Link staff record to this user
+      // 3. Link staff record to this user
       await supabase
         .from('staff_members')
         .update({ user_id: data.user.id, role: form.staffRole as any })

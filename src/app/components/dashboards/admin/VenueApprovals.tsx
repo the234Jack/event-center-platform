@@ -18,7 +18,7 @@ export default function VenueApprovals() {
     setLoading(true);
     Promise.all([fetchPendingVenues(), fetchAllVenuesAdmin()])
       .then(([p, a]) => { setPending(p); setAll(a); })
-      .catch(() => {})
+      .catch((e) => console.error('[admin] venues load error:', e))
       .finally(() => setLoading(false));
   };
 

@@ -7,6 +7,10 @@ export async function fetchAdminStats() {
     supabase.from('venues').select('id', { count: 'exact', head: true }).eq('verified', false),
     supabase.from('bookings').select('id', { count: 'exact', head: true }),
   ]);
+  if (usersRes.error) console.error('[admin] profiles count error:', usersRes.error);
+  if (venuesRes.error) console.error('[admin] active venues error:', venuesRes.error);
+  if (pendingRes.error) console.error('[admin] pending venues error:', pendingRes.error);
+  if (bookingsRes.error) console.error('[admin] bookings error:', bookingsRes.error);
   return {
     totalUsers: usersRes.count ?? 0,
     activeVenues: venuesRes.count ?? 0,
@@ -15,23 +19,36 @@ export async function fetchAdminStats() {
   };
 }
 
+async function attachOwnerProfiles(venues: any[]) {
+  const ownerIds = [...new Set(venues.filter((v) => v.owner_id).map((v) => v.owner_id))];
+  let profilesMap: Record<string, any> = {};
+  if (ownerIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name, email, phone')
+      .in('id', ownerIds);
+    if (profiles) profilesMap = Object.fromEntries(profiles.map((p) => [p.id, p]));
+  }
+  return venues.map((v) => ({ ...v, profiles: v.owner_id ? (profilesMap[v.owner_id] ?? null) : null }));
+}
+
 export async function fetchPendingVenues() {
   const { data, error } = await supabase
     .from('venues')
-    .select('*, profiles!owner_id(full_name, email, phone)')
+    .select('*')
     .eq('verified', false)
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return data ?? [];
+  return attachOwnerProfiles(data ?? []);
 }
 
 export async function fetchAllVenuesAdmin() {
   const { data, error } = await supabase
     .from('venues')
-    .select('*, profiles!owner_id(full_name, email)')
+    .select('*')
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return data ?? [];
+  return attachOwnerProfiles(data ?? []);
 }
 
 export async function approveVenue(id: string) {

@@ -10,8 +10,8 @@ export default function AdminDashboardHome({ onGoToApprovals }: { onGoToApproval
   const [pending, setPending] = useState<any[]>([]);
 
   useEffect(() => {
-    fetchAdminStats().then(setStats).catch(() => {});
-    fetchPendingVenues().then(setPending).catch(() => {});
+    fetchAdminStats().then(setStats).catch((e) => console.error('[admin] stats error:', e));
+    fetchPendingVenues().then(setPending).catch((e) => console.error('[admin] pending venues error:', e));
   }, []);
 
   return (

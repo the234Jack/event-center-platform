@@ -67,26 +67,24 @@ export default function ClientRegistrationForm({ onNavigateToLogin }: ClientRegi
     setLoading(true);
 
     try {
-      // 1. Create auth user
-      const { data, error } = await supabase.auth.signUp({ email: form.email, password: form.password });
+      const { data, error } = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password,
+        options: {
+          data: {
+            role: 'client',
+            full_name: `${form.firstName} ${form.lastName}`,
+            phone: form.phone,
+            nin: form.nin,
+            date_of_birth: form.dateOfBirth,
+            gender: form.gender || null,
+            state: form.state,
+            city: form.lga,
+          },
+        },
+      });
       if (error) { setSubmitError(error.message); setLoading(false); return; }
       if (!data.user) { setSubmitError('Registration failed. Please try again.'); setLoading(false); return; }
-
-      // 2. Create profile
-      const { error: profileError } = await supabase.from('profiles').insert({
-        id: data.user.id,
-        role: 'client',
-        full_name: `${form.firstName} ${form.lastName}`,
-        phone: form.phone,
-        nin: form.nin,
-        date_of_birth: form.dateOfBirth,
-        gender: form.gender || null,
-        state: form.state,
-        lga: form.lga,
-        address: form.address,
-      });
-
-      if (profileError) { setSubmitError(profileError.message); setLoading(false); return; }
 
       onNavigateToLogin();
     } catch {
