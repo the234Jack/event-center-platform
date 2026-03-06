@@ -66,7 +66,22 @@ export default function StaffRegistrationForm({ onNavigateToLogin }: StaffRegist
     setLoading(true);
 
     try {
-      // 1. Validate staff code exists for this venue and is unclaimed
+      // 1. Create auth user first so the session is active for subsequent queries
+      const { data, error } = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password,
+        options: {
+          data: {
+            role: 'staff',
+            full_name: `${form.firstName} ${form.lastName}`,
+            phone: form.phone,
+          },
+        },
+      });
+      if (error) { setSubmitError(error.message); setLoading(false); return; }
+      if (!data.user) { setSubmitError('Registration failed. Please try again.'); setLoading(false); return; }
+
+      // 2. Now authenticated — validate staff code
       const { data: staffRecord, error: codeError } = await supabase
         .from('staff_members')
         .select('id, user_id')
@@ -85,21 +100,6 @@ export default function StaffRegistrationForm({ onNavigateToLogin }: StaffRegist
         setLoading(false);
         return;
       }
-
-      // 2. Create auth user (trigger will auto-create profile from metadata)
-      const { data, error } = await supabase.auth.signUp({
-        email: form.email,
-        password: form.password,
-        options: {
-          data: {
-            role: 'staff',
-            full_name: `${form.firstName} ${form.lastName}`,
-            phone: form.phone,
-          },
-        },
-      });
-      if (error) { setSubmitError(error.message); setLoading(false); return; }
-      if (!data.user) { setSubmitError('Registration failed. Please try again.'); setLoading(false); return; }
 
       // 3. Link staff record to this user
       await supabase
