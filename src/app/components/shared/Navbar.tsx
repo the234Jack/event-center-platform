@@ -32,6 +32,7 @@ export default function Navbar() {
 
   const navLinks = [
     { label: 'Browse Venues', href: '/browse' },
+    { label: 'Plan Event', href: '/plan-event' },
     { label: 'How It Works', href: '/#how-it-works' },
     { label: 'For Owners', href: '/#for-owners' },
   ];

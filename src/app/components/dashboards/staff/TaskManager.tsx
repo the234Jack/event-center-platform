@@ -30,7 +30,8 @@ export default function TaskManager() {
       .then(({ data }) => {
         if (!data) return;
         setStaffMemberId(data.id);
-        return fetchStaffTasks(data.id);
+        // tasks.staff_id references profiles(id) = user.id, NOT staff_members.id
+        return fetchStaffTasks(user.id);
       })
       .then((rows: any) => {
         if (!rows) return;
@@ -70,9 +71,10 @@ export default function TaskManager() {
   };
 
   const handleAddTask = async (task: Omit<Task, 'id' | 'completed'>) => {
-    if (!staffMemberId) { toast.error('Staff profile not found.'); return; }
+    if (!user?.id) { toast.error('Not authenticated.'); return; }
     try {
-      const created = await createTask(staffMemberId, {
+      // tasks.staff_id references profiles(id) = user.id
+      const created = await createTask(user.id, {
         title: task.title,
         priority: task.priority,
         due_date: task.dueDate,

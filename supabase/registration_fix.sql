@@ -22,7 +22,7 @@ DECLARE
 BEGIN
   INSERT INTO public.profiles (
     id, role, full_name, phone, nin,
-    business_name, business_address, state, city
+    business_name, business_address, state, lga
   )
   VALUES (
     NEW.id,
@@ -33,7 +33,7 @@ BEGIN
     meta->>'business_name',
     meta->>'business_address',
     meta->>'state',
-    meta->>'city'
+    meta->>'lga'
   )
   ON CONFLICT (id) DO NOTHING;
   RETURN NEW;

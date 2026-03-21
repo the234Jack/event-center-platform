@@ -8,6 +8,7 @@ import type { Venue } from '../../../data/types';
 interface VenueCardProps {
   venue: Venue;
   bestMatch?: boolean;
+  avgPrice?: number;
   className?: string;
 }
 
@@ -20,9 +21,18 @@ const categoryLabels: Record<string, string> = {
   banquet: 'Banquet',
 };
 
-export default function VenueCard({ venue, bestMatch, className }: VenueCardProps) {
+function getBudgetTier(price: number, avg: number): { label: string; className: string } | null {
+  if (avg <= 0) return null;
+  const ratio = price / avg;
+  if (ratio < 0.75) return { label: '🟢 Great Value', className: 'bg-green-100 text-green-700 border border-green-200' };
+  if (ratio > 1.30) return { label: '💎 Premium', className: 'bg-purple-100 text-purple-700 border border-purple-200' };
+  return null;
+}
+
+export default function VenueCard({ venue, bestMatch, avgPrice, className }: VenueCardProps) {
   const [liked, setLiked] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const budgetTier = avgPrice ? getBudgetTier(venue.priceFrom, avgPrice) : null;
 
   return (
     <Link
@@ -124,10 +134,15 @@ export default function VenueCard({ venue, bestMatch, className }: VenueCardProp
         </div>
 
         {/* Halls count */}
-        <div className="mt-3 pt-3 border-t border-gray-50 flex items-center gap-2">
+        <div className="mt-3 pt-3 border-t border-gray-50 flex items-center gap-2 flex-wrap">
           <Badge variant="secondary" className="text-xs">
             {venue.halls.length} hall{venue.halls.length > 1 ? 's' : ''}
           </Badge>
+          {budgetTier && (
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${budgetTier.className}`}>
+              {budgetTier.label}
+            </span>
+          )}
           <div className="flex gap-1 flex-wrap">
             {venue.facilities.slice(0, 3).map((f) => (
               <span key={f} className="text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">

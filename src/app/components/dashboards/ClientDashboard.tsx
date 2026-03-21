@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../ui/button';
-import { Calendar, Star, Heart, DollarSign, Plus, Building2, Eye, ArrowRight, Sparkles } from 'lucide-react';
+import { Skeleton } from '../ui/skeleton';
+import { Calendar, Star, Heart, DollarSign, Plus, Building2, ArrowRight, Sparkles } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from './shared/DashboardLayout';
 import StatCard from './shared/StatCard';
@@ -10,6 +12,7 @@ import BookingModal from './client/BookingModal';
 import SavedVenues from './client/SavedVenues';
 import ClientProfile from './client/ClientProfile';
 import { fetchClientBookings, fetchSavedVenues } from '../../../lib/api/bookings';
+import { BOOKING_STATUS } from '../../../lib/constants';
 
 const SECTION_TITLES: Record<string, string> = {
   overview: 'Overview',
@@ -34,7 +37,8 @@ export default function ClientDashboard() {
   const { user } = useAuth();
   const [section, setSection] = useState('overview');
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
-  const [recentBookings, setRecentBookings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [recentBookings, setRecentBookings] = useState<{ id: string; venueName: string; hallName: string; eventDate: string; eventType: string; status: string }[]>([]);
   const [totalBookings, setTotalBookings] = useState(0);
   const [upcomingCount, setUpcomingCount] = useState(0);
   const [savedCount, setSavedCount] = useState(0);
@@ -43,20 +47,38 @@ export default function ClientDashboard() {
   useEffect(() => {
     if (!user?.id) return;
     const today = new Date().toISOString().split('T')[0];
-    fetchClientBookings(user.id).then((rows) => {
-      setTotalBookings(rows.length);
-      setUpcomingCount(rows.filter((r: any) => (r.status === 'confirmed' || r.status === 'pending') && r.event_date >= today).length);
-      setTotalSpent(rows.filter((r: any) => r.status === 'confirmed').reduce((sum: number, r: any) => sum + (r.total_cost ?? 0), 0));
-      setRecentBookings(rows.slice(0, 3).map((r: any) => ({
-        id: r.id,
-        venueName: r.venues?.name ?? 'Unknown Venue',
-        hallName: r.halls?.name ?? '',
-        eventDate: r.event_date,
-        eventType: r.event_type,
-        status: r.status === 'confirmed' ? 'confirmed' : r.status === 'cancelled' ? 'cancelled' : 'pending',
-      })));
-    }).catch(() => {});
-    fetchSavedVenues(user.id).then((rows) => setSavedCount(rows.length)).catch(() => {});
+    setLoading(true);
+    Promise.all([
+      fetchClientBookings(user.id),
+      fetchSavedVenues(user.id),
+    ])
+      .then(([bookings, saved]) => {
+        setTotalBookings(bookings.length);
+        setUpcomingCount(
+          bookings.filter((r) =>
+            (r.status === BOOKING_STATUS.CONFIRMED || r.status === BOOKING_STATUS.PENDING) &&
+            (r.event_date as string) >= today
+          ).length
+        );
+        setTotalSpent(
+          bookings
+            .filter((r) => r.status === BOOKING_STATUS.CONFIRMED)
+            .reduce((sum, r) => sum + ((r.total_cost as number) ?? 0), 0)
+        );
+        setRecentBookings(
+          bookings.slice(0, 3).map((r) => ({
+            id: r.id as string,
+            venueName: (r.venues as { name: string } | null)?.name ?? 'Unknown Venue',
+            hallName: (r.halls as { name: string } | null)?.name ?? '',
+            eventDate: r.event_date as string,
+            eventType: r.event_type as string,
+            status: r.status as string,
+          }))
+        );
+        setSavedCount(saved.length);
+      })
+      .catch(() => toast.error('Failed to load dashboard data. Please refresh.'))
+      .finally(() => setLoading(false));
   }, [user?.id]);
 
   const firstName = user?.email?.split('@')[0] ?? 'there';
@@ -66,6 +88,19 @@ export default function ClientDashboard() {
     <DashboardLayout role="client" activeSection={section} onSectionChange={setSection} title={SECTION_TITLES[section]}>
       {section === 'overview' && (
         <div className="space-y-6">
+          {/* Loading Skeleton */}
+          {loading ? (
+            <div className="space-y-6">
+              <Skeleton className="h-32 w-full rounded-2xl" />
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}
+              </div>
+              <Skeleton className="h-48 rounded-2xl" />
+            </div>
+          ) : <>
           {/* Welcome Banner */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-6 text-white">
             <div className="absolute inset-0 opacity-10">
@@ -191,6 +226,7 @@ export default function ClientDashboard() {
               </button>
             </Link>
           </div>
+          </>}
         </div>
       )}
 

@@ -1,10 +1,10 @@
 import React from 'react';
 import { SlidersHorizontal, X } from 'lucide-react';
-import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
+import { LAGOS_ZONES, VENUE_CATEGORIES, GUEST_RANGES } from '../../../lib/constants';
 
 interface Filters {
   location: string;
@@ -20,16 +20,6 @@ interface VenueFiltersProps {
   onReset: () => void;
 }
 
-const cities = ['Lagos', 'Abuja', 'Port Harcourt', 'Ibadan', 'Enugu', 'Kano', 'Benin City'];
-const eventTypes = [
-  { value: 'wedding', label: 'Wedding' },
-  { value: 'conference', label: 'Conference' },
-  { value: 'party', label: 'Party / Birthday' },
-  { value: 'corporate', label: 'Corporate Event' },
-  { value: 'banquet', label: 'Banquet / Dinner' },
-  { value: 'outdoor', label: 'Outdoor Event' },
-];
-const guestOptions = ['1-50', '50-100', '100-200', '200-500', '500-1000', '1000+'];
 const facilityOptions = [
   'Parking Space', 'Toilets', 'Power Supply', 'Stage',
   'Sound System', 'Lighting', 'Dressing Room', 'AC',
@@ -47,7 +37,13 @@ export default function VenueFilters({ filters, onChange, onReset }: VenueFilter
   };
 
   const hasActiveFilters =
-    filters.location || filters.type || filters.guests || filters.budget || filters.facilities.length > 0;
+    (filters.location && filters.location !== 'all') ||
+    (filters.type && filters.type !== 'all') ||
+    (filters.guests && filters.guests !== 'all') ||
+    filters.budget ||
+    filters.facilities.length > 0;
+
+  const selectedZone = filters.location || 'all';
 
   return (
     <aside className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm sticky top-24">
@@ -71,20 +67,34 @@ export default function VenueFilters({ filters, onChange, onReset }: VenueFilter
       </div>
 
       <div className="space-y-6">
-        {/* City */}
+        {/* Lagos Zone Selector */}
         <div className="space-y-2">
-          <Label className="text-sm font-medium text-gray-700">City / Location</Label>
-          <Select value={filters.location} onValueChange={(v) => update({ location: v })}>
-            <SelectTrigger>
-              <SelectValue placeholder="All cities" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All cities</SelectItem>
-              {cities.map((c) => (
-                <SelectItem key={c} value={c}>{c}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label className="text-sm font-medium text-gray-700">Lagos Zone</Label>
+          <div className="grid grid-cols-1 gap-1.5">
+            {LAGOS_ZONES.map((zone) => {
+              const isActive = selectedZone === zone.id;
+              return (
+                <button
+                  key={zone.id}
+                  type="button"
+                  onClick={() => update({ location: zone.id })}
+                  className={`
+                    flex items-center gap-2.5 w-full px-3 py-2 rounded-xl border text-left
+                    transition-all duration-150 text-sm font-medium
+                    ${isActive ? zone.activeColor + ' shadow-sm' : zone.color + ' hover:opacity-80'}
+                  `}
+                >
+                  <span className="text-base leading-none">{zone.emoji}</span>
+                  <div className="min-w-0">
+                    <p className="font-semibold truncate">{zone.name}</p>
+                    <p className={`text-xs truncate ${isActive ? 'opacity-80' : 'opacity-60'}`}>
+                      {zone.description}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Event Type */}
@@ -96,7 +106,7 @@ export default function VenueFilters({ filters, onChange, onReset }: VenueFilter
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All types</SelectItem>
-              {eventTypes.map((t) => (
+              {VENUE_CATEGORIES.map((t) => (
                 <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
               ))}
             </SelectContent>
@@ -112,7 +122,7 @@ export default function VenueFilters({ filters, onChange, onReset }: VenueFilter
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Any capacity</SelectItem>
-              {guestOptions.map((g) => (
+              {GUEST_RANGES.map((g) => (
                 <SelectItem key={g} value={g}>{g} guests</SelectItem>
               ))}
             </SelectContent>
@@ -154,11 +164,6 @@ export default function VenueFilters({ filters, onChange, onReset }: VenueFilter
             ))}
           </div>
         </div>
-
-        {/* Apply Button */}
-        <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-          Apply Filters
-        </Button>
       </div>
     </aside>
   );

@@ -7,6 +7,7 @@ import { Toaster } from './components/ui/sonner';
 import LandingPage from './pages/LandingPage';
 import BrowseVenuesPage from './pages/BrowseVenuesPage';
 import VenueDetailPage from './pages/VenueDetailPage';
+import SmartPlannerPage from './pages/SmartPlannerPage';
 
 // Auth pages
 import LoginPage from './components/LoginPage';
@@ -71,6 +72,7 @@ function AppRoutes() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/browse" element={<BrowseVenuesPage />} />
       <Route path="/venue/:id" element={<VenueDetailPage />} />
+      <Route path="/plan-event" element={<SmartPlannerPage />} />
 
       {/* Auth pages (redirect if already logged in) */}
       <Route

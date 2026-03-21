@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, CheckSquare, Users, TrendingUp, ArrowRight, Clock, Zap } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from './shared/DashboardLayout';
 import StatCard from './shared/StatCard';
+import { Skeleton } from '../ui/skeleton';
 import StaffSchedule from './staff/StaffSchedule';
 import TaskManager from './staff/TaskManager';
 import ClientDirectory from './staff/ClientDirectory';
@@ -30,40 +32,44 @@ const QUICK_ACTIONS = [
 export default function StaffDashboard() {
   const { user } = useAuth();
   const [section, setSection] = useState('overview');
-  const [todayEvents, setTodayEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [todayEvents, setTodayEvents] = useState<{ id: string; eventName: string; time: string; venueName: string; status: string }[]>([]);
   const [pendingTasks, setPendingTasks] = useState(0);
   const [eventsThisMonth, setEventsThisMonth] = useState(0);
 
   useEffect(() => {
     if (!user?.id) return;
+    setLoading(true);
     supabase.from('staff_members').select('id, venue_id, venues(name)').eq('user_id', user.id).single()
-      .then(({ data: sm }) => {
-        if (!sm?.venue_id) return;
+      .then(async ({ data: sm, error }) => {
+        if (error || !sm?.venue_id) return;
         const today = new Date().toISOString().split('T')[0];
         const monthStart = today.slice(0, 7) + '-01';
         const monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0];
 
-        // Today's events
-        supabase.from('bookings').select('id, event_type, event_date, start_time, end_time, status, venues(name)')
-          .eq('venue_id', sm.venue_id).eq('event_date', today)
-          .then(({ data }) => setTodayEvents((data ?? []).map((b: any) => ({
-            id: b.id,
-            eventName: b.event_type + ' Event',
-            time: b.start_time && b.end_time ? `${b.start_time} - ${b.end_time}` : 'All Day',
-            venueName: (sm as any).venues?.name ?? '',
-            status: b.status === 'confirmed' ? 'upcoming' : 'upcoming',
-          }))));
+        const [eventsRes, monthRes, tasksRes] = await Promise.all([
+          supabase.from('bookings').select('id, event_type, event_date, start_time, end_time, status')
+            .eq('venue_id', sm.venue_id).eq('event_date', today),
+          supabase.from('bookings').select('id', { count: 'exact', head: true })
+            .eq('venue_id', sm.venue_id).gte('event_date', monthStart).lte('event_date', monthEnd),
+          // tasks.staff_id references profiles(id) = user.id
+          supabase.from('tasks').select('id', { count: 'exact', head: true })
+            .eq('staff_id', user.id).eq('completed', false),
+        ]);
 
-        // Events this month
-        supabase.from('bookings').select('id', { count: 'exact', head: true })
-          .eq('venue_id', sm.venue_id).gte('event_date', monthStart).lte('event_date', monthEnd)
-          .then(({ count }) => setEventsThisMonth(count ?? 0));
-
-        // Pending tasks
-        supabase.from('tasks').select('id', { count: 'exact', head: true })
-          .eq('staff_id', sm.id).eq('completed', false)
-          .then(({ count }) => setPendingTasks(count ?? 0));
-      }).catch(() => {});
+        const venueName = (sm.venues as { name: string } | null)?.name ?? '';
+        setTodayEvents((eventsRes.data ?? []).map((b) => ({
+          id: b.id as string,
+          eventName: (b.event_type as string) + ' Event',
+          time: b.start_time && b.end_time ? `${b.start_time} - ${b.end_time}` : 'All Day',
+          venueName,
+          status: 'upcoming',
+        })));
+        setEventsThisMonth(monthRes.count ?? 0);
+        setPendingTasks(tasksRes.count ?? 0);
+      })
+      .catch(() => toast.error('Failed to load dashboard data. Please refresh.'))
+      .finally(() => setLoading(false));
   }, [user?.id]);
 
   const firstName = user?.email?.split('@')[0] ?? 'Staff';
@@ -72,6 +78,18 @@ export default function StaffDashboard() {
     <DashboardLayout role="staff" activeSection={section} onSectionChange={setSection} title={SECTION_TITLES[section]}>
       {section === 'overview' && (
         <div className="space-y-6">
+          {loading ? (
+            <div className="space-y-6">
+              <Skeleton className="h-32 w-full rounded-2xl" />
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}
+              </div>
+              <Skeleton className="h-48 rounded-2xl" />
+            </div>
+          ) : <>
           {/* Welcome Banner */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-purple-600 via-purple-700 to-violet-800 p-6 text-white">
             <div className="absolute inset-0 opacity-10">
@@ -181,6 +199,7 @@ export default function StaffDashboard() {
               )}
             </div>
           </div>
+          </>}
         </div>
       )}
 

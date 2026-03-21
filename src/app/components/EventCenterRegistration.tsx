@@ -22,12 +22,14 @@ export interface EventCenterFormData {
   venueCategory: string;
   description: string;
   state: string;
+  city: string;
   lga: string;
+  address: string;
   landmark: string;
   contactPhone: string;
   contactEmail: string;
-  coverImage: File | null;
-  galleryImages: File[];
+  coverImageUrl: string;
+  galleryImageUrls: string[];
 
   // Step 2: Hall Details
   halls: Hall[];
@@ -47,7 +49,7 @@ export interface Hall {
   airConditioned: boolean;
   pricePerHour: string;
   pricePerDay: string;
-  images: File[];
+  imageUrls: string[];
 }
 
 export interface FacilityItem {
@@ -83,12 +85,14 @@ export default function EventCenterRegistration({
     venueCategory: '',
     description: '',
     state: '',
+    city: '',
     lga: '',
+    address: '',
     landmark: '',
     contactPhone: '',
     contactEmail: '',
-    coverImage: null,
-    galleryImages: [],
+    coverImageUrl: '',
+    galleryImageUrls: [],
     halls: [],
     facilities: [
       { name: 'Parking Space', selected: false, quantity: '', cost: '' },
@@ -144,13 +148,17 @@ export default function EventCenterRegistration({
       const { data: venue, error: venueError } = await supabase.from('venues').insert({
         id: venueId,
         name: formData.centerName,
-        category: formData.venueCategory || 'general',
+        category: formData.venueCategory || 'corporate',
         description: formData.description,
         state: formData.state,
-        city: formData.lga,
+        city: formData.city || formData.state, // use city field, fallback to state
+        address: formData.address || '',
+        landmark: formData.landmark || '',
         phone: formData.contactPhone,
         email: formData.contactEmail,
         facilities,
+        cover_image: formData.coverImageUrl || null,
+        gallery_images: formData.galleryImageUrls.filter(Boolean),
         owner_id: user.id,
         max_capacity: maxCapacity || null,
         verified: false,
@@ -167,9 +175,11 @@ export default function EventCenterRegistration({
             type: h.type,
             seating_capacity: parseInt(h.seatingCapacity) || null,
             standing_capacity: parseInt(h.standingCapacity) || null,
+            size_sqm: parseInt(h.size) || null,
             price_per_hour: parseFloat(h.pricePerHour) || null,
             price_per_day: parseFloat(h.pricePerDay) || null,
             air_conditioned: h.airConditioned,
+            images: h.imageUrls.filter(Boolean),
           }))
         );
         if (hallsError) throw hallsError;

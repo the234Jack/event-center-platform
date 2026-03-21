@@ -8,9 +8,33 @@ export interface BookingInsert {
 }
 
 export async function createBooking(data: BookingInsert) {
+  // Check for an existing confirmed/pending booking for the same hall on the same date
+  const { data: clash } = await supabase
+    .from('bookings')
+    .select('id')
+    .eq('hall_id', data.hall_id)
+    .eq('event_date', data.event_date)
+    .in('status', ['pending', 'confirmed'])
+    .maybeSingle();
+
+  if (clash) {
+    throw new Error('This hall is already booked for that date. Please choose a different date or hall.');
+  }
+
   const { data: booking, error } = await supabase.from('bookings').insert(data).select().single();
   if (error) throw error;
   return booking;
+}
+
+/** Returns all booked dates (ISO strings) for a hall so the calendar can grey them out. */
+export async function fetchHallBookedDates(hallId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('event_date')
+    .eq('hall_id', hallId)
+    .in('status', ['pending', 'confirmed']);
+  if (error) throw error;
+  return (data ?? []).map((r) => r.event_date as string);
 }
 
 export async function fetchClientBookings(clientId: string) {

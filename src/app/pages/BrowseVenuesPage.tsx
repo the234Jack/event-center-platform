@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, AlertCircle } from 'lucide-react';
 import { fetchVenues, adaptVenue } from '../../lib/api/venues';
 import type { Venue } from '../../data/types';
 import Navbar from '../components/shared/Navbar';
@@ -9,6 +9,8 @@ import VenueCard from '../components/browse/VenueCard';
 import VenueFilters from '../components/browse/VenueFilters';
 import SmartSuggestions from '../components/browse/SmartSuggestions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Skeleton } from '../components/ui/skeleton';
+import { LAGOS_ZONES } from '../../lib/constants';
 
 interface Filters {
   location: string;
@@ -18,10 +20,23 @@ interface Filters {
   facilities: string[];
 }
 
+function venueMatchesZone(venue: Venue, zoneId: string): boolean {
+  if (!zoneId || zoneId === 'all') return true;
+  const zone = LAGOS_ZONES.find((z) => z.id === zoneId);
+  if (!zone || zone.areas.length === 0) return true;
+  const city = venue.city.toLowerCase();
+  const address = (venue.address ?? '').toLowerCase();
+  return (zone.areas as readonly string[]).some(
+    (area) => city.includes(area.toLowerCase()) || address.includes(area.toLowerCase())
+  );
+}
+
 function scoreVenue(venue: Venue, filters: Filters): number {
   let score = 0;
-  if (filters.location && venue.city.toLowerCase() === filters.location.toLowerCase()) score += 3;
-  if (filters.type && venue.category === filters.type) score += 2;
+  if (filters.location && filters.location !== 'all') {
+    if (venueMatchesZone(venue, filters.location)) score += 3;
+  }
+  if (filters.type && filters.type !== 'all' && venue.category === filters.type) score += 2;
   if (filters.budget) {
     const budget = Number(filters.budget);
     if (venue.priceFrom <= budget) score += 2;
@@ -44,8 +59,10 @@ export default function BrowseVenuesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [sortBy, setSortBy] = useState<string>('featured');
   const [allVenues, setAllVenues] = useState<Venue[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [filters, setFilters] = useState<Filters>({
-    location: searchParams.get('location') || '',
+    location: searchParams.get('location') || 'all',
     type: searchParams.get('type') || '',
     guests: searchParams.get('guests') || '',
     budget: searchParams.get('budget') || '',
@@ -53,9 +70,12 @@ export default function BrowseVenuesPage() {
   });
 
   useEffect(() => {
+    setLoading(true);
+    setError(false);
     fetchVenues()
       .then((rows) => setAllVenues(rows.map((r) => adaptVenue(r, r.halls ?? []))))
-      .catch(() => {});
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
   }, []);
 
   const handleFilterChange = (newFilters: Filters) => {
@@ -69,7 +89,7 @@ export default function BrowseVenuesPage() {
   };
 
   const handleReset = () => {
-    const reset: Filters = { location: '', type: '', guests: '', budget: '', facilities: [] };
+    const reset: Filters = { location: 'all', type: '', guests: '', budget: '', facilities: [] };
     setFilters(reset);
     setSearchParams({});
   };
@@ -83,7 +103,7 @@ export default function BrowseVenuesPage() {
   const filteredAndScored = useMemo(() => {
     let results = allVenues.filter((v) => {
       if (filters.location && filters.location !== 'all') {
-        if (v.city.toLowerCase() !== filters.location.toLowerCase()) return false;
+        if (!venueMatchesZone(v, filters.location)) return false;
       }
       if (filters.type && filters.type !== 'all') {
         if (v.category !== filters.type) return false;
@@ -125,6 +145,9 @@ export default function BrowseVenuesPage() {
   }, [allVenues, filters, sortBy]);
 
   const maxScore = filteredAndScored.length > 0 ? filteredAndScored[0].score : 0;
+  const avgPrice = allVenues.length > 0
+    ? allVenues.reduce((s, v) => s + v.priceFrom, 0) / allVenues.length
+    : 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -157,7 +180,7 @@ export default function BrowseVenuesPage() {
           {/* Main Content */}
           <div className="lg:col-span-3">
             {/* Smart Suggestions */}
-            {hasSmartSearch && (
+            {hasSmartSearch && !loading && (
               <SmartSuggestions
                 location={filters.location !== 'all' ? filters.location : ''}
                 type={filters.type !== 'all' ? filters.type : ''}
@@ -168,46 +191,76 @@ export default function BrowseVenuesPage() {
               />
             )}
 
-            {/* Results Header */}
-            <div className="flex items-center justify-between mb-6">
-              <p className="text-gray-600 text-sm">
-                <span className="font-semibold text-gray-900">{filteredAndScored.length}</span>{' '}
-                venue{filteredAndScored.length !== 1 ? 's' : ''} found
-              </p>
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-gray-500 hidden sm:inline">Sort by:</span>
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-44 h-9 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="featured">Best Match</SelectItem>
-                    <SelectItem value="price-asc">Price: Low to High</SelectItem>
-                    <SelectItem value="price-desc">Price: High to Low</SelectItem>
-                    <SelectItem value="rating">Highest Rated</SelectItem>
-                    <SelectItem value="capacity">Largest Capacity</SelectItem>
-                  </SelectContent>
-                </Select>
+            {/* Error State */}
+            {error && (
+              <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl p-4 mb-6 text-red-700">
+                <AlertCircle className="h-5 w-5 flex-shrink-0" />
+                <p className="text-sm">Failed to load venues. Please refresh the page.</p>
               </div>
-            </div>
+            )}
+
+            {/* Results Header */}
+            {!loading && (
+              <div className="flex items-center justify-between mb-6">
+                <p className="text-gray-600 text-sm">
+                  <span className="font-semibold text-gray-900">{filteredAndScored.length}</span>{' '}
+                  venue{filteredAndScored.length !== 1 ? 's' : ''} found
+                </p>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-gray-500 hidden sm:inline">Sort by:</span>
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger className="w-44 h-9 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="featured">Best Match</SelectItem>
+                      <SelectItem value="price-asc">Price: Low to High</SelectItem>
+                      <SelectItem value="price-desc">Price: High to Low</SelectItem>
+                      <SelectItem value="rating">Highest Rated</SelectItem>
+                      <SelectItem value="capacity">Largest Capacity</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
+            {/* Loading Skeleton */}
+            {loading && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="bg-white rounded-2xl overflow-hidden border border-gray-100">
+                    <Skeleton className="aspect-[4/3] w-full" />
+                    <div className="p-4 space-y-3">
+                      <Skeleton className="h-5 w-3/4 rounded" />
+                      <Skeleton className="h-4 w-1/2 rounded" />
+                      <Skeleton className="h-4 w-full rounded" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Venue Grid */}
-            {filteredAndScored.length > 0 ? (
+            {!loading && !error && filteredAndScored.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
                 {filteredAndScored.map(({ venue, score }) => (
                   <VenueCard
                     key={venue.id}
                     venue={venue}
                     bestMatch={hasSmartSearch && score === maxScore && score > 0}
+                    avgPrice={avgPrice}
                   />
                 ))}
               </div>
-            ) : (
+            )}
+
+            {/* Empty State */}
+            {!loading && !error && filteredAndScored.length === 0 && (
               <div className="flex flex-col items-center justify-center py-20 text-center">
                 <div className="text-5xl mb-4">🔍</div>
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">No venues found</h3>
                 <p className="text-gray-500 mb-6 max-w-md">
-                  Try adjusting your filters — for example, expanding the capacity range or removing some facility requirements.
+                  Try adjusting your filters — for example, expanding the capacity range, changing the zone, or removing some facility requirements.
                 </p>
                 <button
                   onClick={handleReset}

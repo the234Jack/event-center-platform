@@ -192,6 +192,7 @@ export default function VenueDetailPage() {
           {/* Right: Booking Widget */}
           <div className="lg:col-span-1">
             <BookingWidget
+              venueId={venue.id}
               venueName={venue.name}
               priceFrom={venue.priceFrom}
               priceTo={venue.priceTo}

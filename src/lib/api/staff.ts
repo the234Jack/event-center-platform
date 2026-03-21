@@ -11,8 +11,10 @@ export async function fetchStaffMembers(venueId: string) {
 }
 
 export async function createStaffInvite(venueId: string, role: string) {
-  // Generate a unique staff code
-  const code = `STAFF-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+  // Generate a cryptographically secure staff invite code
+  const array = new Uint8Array(5);
+  crypto.getRandomValues(array);
+  const code = `STAFF-${Array.from(array).map((b) => b.toString(36).padStart(2, '0')).join('').toUpperCase().slice(0, 6)}`;
   const { data, error } = await supabase
     .from('staff_members')
     .insert({ venue_id: venueId, role, staff_code: code, status: 'active' })
