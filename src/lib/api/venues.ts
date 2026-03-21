@@ -41,6 +41,7 @@ export function adaptVenue(row: VenueRow, halls: HallRow[] = []): Venue {
     email: row.email ?? '',
     featured: row.featured,
     verified: row.verified,
+    paystackSubaccountCode: row.paystack_subaccount_code ?? undefined,
   };
 }
 
@@ -53,6 +54,7 @@ export interface VenueRow {
   cover_image: string | null; gallery_images: string[];
   facilities: string[]; services: string[];
   featured: boolean; verified: boolean;
+  paystack_subaccount_code?: string | null;
 }
 
 export interface HallRow {

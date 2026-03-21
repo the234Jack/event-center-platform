@@ -31,6 +31,12 @@ export interface EventCenterFormData {
   coverImageUrl: string;
   galleryImageUrls: string[];
 
+  // Payout / bank details (for Paystack subaccount)
+  bankName: string;
+  bankCode: string;
+  accountNumber: string;
+  accountName: string;
+
   // Step 2: Hall Details
   halls: Hall[];
 
@@ -93,6 +99,10 @@ export default function EventCenterRegistration({
     contactEmail: '',
     coverImageUrl: '',
     galleryImageUrls: [],
+    bankName: '',
+    bankCode: '',
+    accountNumber: '',
+    accountName: '',
     halls: [],
     facilities: [
       { name: 'Parking Space', selected: false, quantity: '', cost: '' },
@@ -162,6 +172,10 @@ export default function EventCenterRegistration({
         owner_id: user.id,
         max_capacity: maxCapacity || null,
         verified: false,
+        bank_name: formData.bankName || null,
+        bank_code: formData.bankCode || null,
+        account_number: formData.accountNumber || null,
+        account_name: formData.accountName || null,
       }).select('id').single();
 
       if (venueError) throw venueError;
@@ -183,6 +197,21 @@ export default function EventCenterRegistration({
           }))
         );
         if (hallsError) throw hallsError;
+      }
+
+      // Create Paystack subaccount for automatic payouts (non-blocking)
+      if (formData.bankCode && formData.accountNumber) {
+        supabase.functions.invoke('create-paystack-subaccount', {
+          body: {
+            venue_id: venue.id,
+            business_name: formData.centerName,
+            bank_code: formData.bankCode,
+            account_number: formData.accountNumber,
+          },
+        }).catch(() => {
+          // Subaccount creation failure is non-fatal — venue is still saved
+          // Admin can retry from the Supabase dashboard
+        });
       }
 
       toast.success('Event center registered successfully! Awaiting admin approval.');

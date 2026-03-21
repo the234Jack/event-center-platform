@@ -199,6 +199,7 @@ export default function VenueDetailPage() {
               phone={venue.phone}
               email={venue.email}
               halls={venue.halls}
+              subaccountCode={venue.paystackSubaccountCode}
               onHallRecommend={setRecommendedHallId}
             />
           </div>

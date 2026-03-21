@@ -43,6 +43,7 @@ export interface Venue {
   email: string;
   featured: boolean;
   verified: boolean;
+  paystackSubaccountCode?: string;
 }
 
 export interface Category {

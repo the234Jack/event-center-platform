@@ -4,9 +4,9 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { AlertCircle, Plus, X, Link as LinkIcon } from 'lucide-react';
+import { AlertCircle, Plus, X, Link as LinkIcon, Landmark } from 'lucide-react';
 import { EventCenterFormData } from '../EventCenterRegistration';
-import { VENUE_CATEGORIES, NIGERIAN_STATES } from '../../../lib/constants';
+import { VENUE_CATEGORIES, NIGERIAN_STATES, NIGERIAN_BANKS } from '../../../lib/constants';
 
 interface EventCenterDetailsProps {
   data: EventCenterFormData;
@@ -300,6 +300,66 @@ export default function EventCenterDetails({ data, updateData, onNext }: EventCe
           </div>
         )}
         <p className="text-xs text-gray-400">Add multiple image URLs. Press Enter or click Add after each URL.</p>
+      </div>
+
+      {/* Payout / Bank Account Details */}
+      <div className="space-y-4 rounded-xl border border-green-100 bg-green-50 p-5">
+        <div className="flex items-center gap-2 mb-1">
+          <Landmark className="h-4 w-4 text-green-700" />
+          <h3 className="font-semibold text-green-900 text-sm">Payout Bank Account</h3>
+        </div>
+        <p className="text-xs text-green-700">
+          Provide your bank account so booking payments are automatically transferred to you (90% per booking, after 10% platform fee).
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Bank Selector */}
+          <div className="space-y-2">
+            <Label htmlFor="bankName">Bank Name</Label>
+            <Select
+              value={data.bankCode}
+              onValueChange={(v) => {
+                const bank = NIGERIAN_BANKS.find((b) => b.code === v);
+                updateData({ bankCode: v, bankName: bank?.name ?? '' });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select your bank" />
+              </SelectTrigger>
+              <SelectContent>
+                {NIGERIAN_BANKS.map((b) => (
+                  <SelectItem key={b.code} value={b.code}>{b.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Account Number */}
+          <div className="space-y-2">
+            <Label htmlFor="accountNumber">Account Number</Label>
+            <Input
+              id="accountNumber"
+              type="text"
+              inputMode="numeric"
+              maxLength={10}
+              placeholder="0123456789"
+              value={data.accountNumber}
+              onChange={(e) => handleChange('accountNumber', e.target.value.replace(/\D/g, ''))}
+            />
+          </div>
+        </div>
+
+        {/* Account Name */}
+        <div className="space-y-2">
+          <Label htmlFor="accountName">Account Name</Label>
+          <Input
+            id="accountName"
+            placeholder="Name exactly as it appears on your bank account"
+            value={data.accountName}
+            onChange={(e) => handleChange('accountName', e.target.value)}
+          />
+          <p className="text-xs text-gray-400">Must match your bank records exactly. Used for verification.</p>
+        </div>
       </div>
 
       <div className="flex justify-end pt-4">

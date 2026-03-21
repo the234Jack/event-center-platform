@@ -24,6 +24,7 @@ interface BookingWidgetProps {
   phone: string;
   email: string;
   halls: VenueHall[];
+  subaccountCode?: string;   // Paystack subaccount for split payout to venue owner
   onHallRecommend?: (hallId: string) => void;
 }
 
@@ -37,6 +38,7 @@ export default function BookingWidget({
   phone,
   email,
   halls,
+  subaccountCode,
   onHallRecommend,
 }: BookingWidgetProps) {
   const { user } = useAuth();
@@ -82,12 +84,22 @@ export default function BookingWidget({
     bookedDates.some((d) => d.toDateString() === date.toDateString());
 
   // ── Paystack config (re-evaluated each render with latest state) ─────────
+  const hallPrice = selectedHall?.pricePerDay ?? 0;
+  // Platform keeps 10% as commission; 90% goes to venue owner's subaccount
+  const platformShare = Math.round(hallPrice * 0.10 * 100); // in kobo
+
   const paystackConfig = {
     reference: payRef,
     email: user?.email ?? '',
-    amount: (selectedHall?.pricePerDay ?? 0) * 100, // Paystack uses kobo
+    amount: hallPrice * 100, // kobo
     publicKey: PAYSTACK_KEY,
     currency: 'NGN' as const,
+    // Split payment: if subaccount exists, route 90% to venue owner automatically
+    ...(subaccountCode ? {
+      subaccount: subaccountCode,
+      bearer: 'account' as const,        // platform bears Paystack transaction fees
+      transaction_charge: platformShare, // platform's 10% in kobo; rest → venue owner
+    } : {}),
     metadata: {
       custom_fields: [
         { display_name: 'Venue', variable_name: 'venue_name', value: venueName },
@@ -394,9 +406,16 @@ export default function BookingWidget({
 
         {/* Trust badge */}
         {user && (
-          <div className="flex items-center justify-center gap-1.5 text-xs text-gray-400">
-            <ShieldCheck className="h-3.5 w-3.5 text-green-500" />
-            Secured by Paystack · Cards, Bank Transfer, USSD
+          <div className="flex flex-col items-center gap-1 text-xs text-gray-400">
+            <div className="flex items-center gap-1.5">
+              <ShieldCheck className="h-3.5 w-3.5 text-green-500" />
+              Secured by Paystack · Cards, Bank Transfer, USSD
+            </div>
+            {subaccountCode && hallPrice > 0 && (
+              <span className="text-green-600 font-medium">
+                ₦{Math.round(hallPrice * 0.9).toLocaleString()} paid directly to venue · ₦{Math.round(hallPrice * 0.1).toLocaleString()} platform fee
+              </span>
+            )}
           </div>
         )}
 
