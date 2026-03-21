@@ -5,6 +5,7 @@ export interface BookingInsert {
   event_date: string; start_time?: string; end_time?: string;
   event_type: string; guest_count: number;
   special_requirements?: string; total_cost?: number;
+  payment_reference?: string; status?: string;
 }
 
 export async function createBooking(data: BookingInsert) {

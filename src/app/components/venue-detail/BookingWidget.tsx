@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Phone, Mail, Heart, Sparkles, Info, CalendarDays, Loader2 } from 'lucide-react';
+import { Phone, Mail, Heart, Sparkles, Info, CalendarDays, Loader2, ShieldCheck } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -9,6 +9,7 @@ import { Calendar } from '../ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { toast } from 'sonner';
 import { format, parseISO, isBefore, startOfToday } from 'date-fns';
+import { usePaystackPayment } from 'react-paystack';
 import { useAuth } from '../../context/AuthContext';
 import { createBooking, fetchHallBookedDates } from '../../../lib/api/bookings';
 import { EVENT_TYPES } from '../../../lib/constants';
@@ -25,6 +26,8 @@ interface BookingWidgetProps {
   halls: VenueHall[];
   onHallRecommend?: (hallId: string) => void;
 }
+
+const PAYSTACK_KEY = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY ?? '';
 
 export default function BookingWidget({
   venueId,
@@ -48,6 +51,9 @@ export default function BookingWidget({
   const [bookedDates, setBookedDates] = useState<Date[]>([]);
   const [form, setForm] = useState({ eventType: '', startTime: '', endTime: '', specialReqs: '' });
 
+  // Paystack: we generate a fresh reference each payment attempt via state
+  const [payRef, setPayRef] = useState('');
+
   // Smart hall recommendation
   const recommendedHall = useMemo(() => {
     if (!guestCount) return null;
@@ -59,7 +65,6 @@ export default function BookingWidget({
     return fitting[0] ?? null;
   }, [guestCount, halls]);
 
-  // Notify parent of recommendation
   useEffect(() => {
     onHallRecommend?.(recommendedHall?.id ?? '');
   }, [recommendedHall]);
@@ -73,11 +78,74 @@ export default function BookingWidget({
   }, [selectedHallId]);
 
   const selectedHall = halls.find((h) => h.id === selectedHallId);
-
   const isDateBooked = (date: Date) =>
     bookedDates.some((d) => d.toDateString() === date.toDateString());
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // ── Paystack config (re-evaluated each render with latest state) ─────────
+  const paystackConfig = {
+    reference: payRef,
+    email: user?.email ?? '',
+    amount: (selectedHall?.pricePerDay ?? 0) * 100, // Paystack uses kobo
+    publicKey: PAYSTACK_KEY,
+    currency: 'NGN' as const,
+    metadata: {
+      custom_fields: [
+        { display_name: 'Venue', variable_name: 'venue_name', value: venueName },
+        { display_name: 'Hall', variable_name: 'hall_name', value: selectedHall?.name ?? '' },
+        { display_name: 'Event Type', variable_name: 'event_type', value: form.eventType },
+        { display_name: 'Event Date', variable_name: 'event_date', value: selectedDate ? format(selectedDate, 'dd MMM yyyy') : '' },
+      ],
+    },
+  };
+
+  const initializePayment = usePaystackPayment(paystackConfig);
+
+  // Triggered once payRef is set (new payment attempt)
+  useEffect(() => {
+    if (!payRef) return;
+
+    const onSuccess = async (response: { reference: string }) => {
+      setSubmitting(true);
+      try {
+        await createBooking({
+          client_id: user!.id,
+          venue_id: venueId,
+          hall_id: selectedHallId,
+          event_date: format(selectedDate!, 'yyyy-MM-dd'),
+          start_time: form.startTime || undefined,
+          end_time: form.endTime || undefined,
+          event_type: form.eventType,
+          guest_count: parseInt(guestCount),
+          special_requirements: form.specialReqs || undefined,
+          total_cost: selectedHall?.pricePerDay,
+          payment_reference: response.reference,
+          status: 'confirmed',
+        });
+        toast.success(`🎉 Booking confirmed! Reference: ${response.reference}`);
+        // Reset form
+        setSelectedHallId('');
+        setSelectedDate(undefined);
+        setGuestCount('');
+        setPayRef('');
+        setForm({ eventType: '', startTime: '', endTime: '', specialReqs: '' });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Payment received but booking failed. Contact support.';
+        toast.error(msg);
+      } finally {
+        setSubmitting(false);
+      }
+    };
+
+    const onClose = () => {
+      setPayRef('');
+      toast.error('Payment cancelled.');
+    };
+
+    initializePayment({ onSuccess, onClose });
+  }, [payRef]);
+
+  // ── Validate then trigger Paystack ───────────────────────────────────────
+  const handlePayAndBook = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!user) {
@@ -85,44 +153,27 @@ export default function BookingWidget({
       navigate('/login');
       return;
     }
-
     if (!selectedHallId) { toast.error('Please select a hall.'); return; }
     if (!selectedDate) { toast.error('Please pick an event date.'); return; }
     if (!form.eventType) { toast.error('Please select an event type.'); return; }
     if (!guestCount || parseInt(guestCount) <= 0) { toast.error('Please enter guest count.'); return; }
-
     if (isDateBooked(selectedDate)) {
-      toast.error('That date is already booked for this hall. Please choose another date.');
+      toast.error('That date is already booked. Please choose another date.');
+      return;
+    }
+    if (!PAYSTACK_KEY) {
+      toast.error('Payment gateway not configured. Contact the administrator.');
       return;
     }
 
-    setSubmitting(true);
-    try {
-      await createBooking({
-        client_id: user.id,
-        venue_id: venueId,
-        hall_id: selectedHallId,
-        event_date: format(selectedDate, 'yyyy-MM-dd'),
-        start_time: form.startTime || undefined,
-        end_time: form.endTime || undefined,
-        event_type: form.eventType,
-        guest_count: parseInt(guestCount),
-        special_requirements: form.specialReqs || undefined,
-        total_cost: selectedHall?.pricePerDay ?? undefined,
-      });
-      toast.success(`Booking request sent to ${venueName}! Check your dashboard for updates.`);
-      // Reset form
-      setSelectedHallId('');
-      setSelectedDate(undefined);
-      setGuestCount('');
-      setForm({ eventType: '', startTime: '', endTime: '', specialReqs: '' });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to submit booking. Please try again.';
-      toast.error(msg);
-    } finally {
-      setSubmitting(false);
-    }
+    // Generate a unique reference and trigger the useEffect above
+    const ref = `EVH-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    setPayRef(ref);
   };
+
+  const amountDisplay = selectedHall
+    ? `₦${selectedHall.pricePerDay.toLocaleString()}`
+    : null;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-lg overflow-hidden sticky top-24">
@@ -142,7 +193,7 @@ export default function BookingWidget({
           <span className="text-2xl font-bold text-white">₦{priceFrom.toLocaleString()}</span>
           <span className="text-blue-300 text-sm">to ₦{priceTo.toLocaleString()}</span>
         </div>
-        <p className="text-blue-200 text-xs mt-1">Per day · Contact for custom packages</p>
+        <p className="text-blue-200 text-xs mt-1">Per day · Secure payment via Paystack</p>
       </div>
 
       {/* Contact Buttons */}
@@ -164,12 +215,12 @@ export default function BookingWidget({
       </div>
 
       {/* Booking Form */}
-      <form onSubmit={handleSubmit} className="p-5 space-y-4">
+      <form onSubmit={handlePayAndBook} className="p-5 space-y-4">
         <h3 className="font-semibold text-gray-900 text-sm">
-          {user ? 'Request a Booking' : 'Book This Venue'}
+          {user ? 'Book & Pay Securely' : 'Book This Venue'}
         </h3>
 
-        {/* Guest Count (smart) */}
+        {/* Guest Count */}
         <div className="space-y-1.5">
           <Label className="text-xs text-gray-600 flex items-center gap-1">
             <Sparkles className="h-3 w-3 text-orange-500" />
@@ -249,9 +300,7 @@ export default function BookingWidget({
                 mode="single"
                 selected={selectedDate}
                 onSelect={(date) => { setSelectedDate(date); setCalendarOpen(false); }}
-                disabled={(date) =>
-                  isBefore(date, startOfToday()) || isDateBooked(date)
-                }
+                disabled={(date) => isBefore(date, startOfToday()) || isDateBooked(date)}
                 modifiers={{ booked: bookedDates }}
                 modifiersClassNames={{ booked: 'line-through text-red-400 opacity-60' }}
                 initialFocus
@@ -315,7 +364,7 @@ export default function BookingWidget({
           />
         </div>
 
-        {/* Cost Estimator — shown when hall + event type + guest count are filled */}
+        {/* Cost Estimator */}
         {selectedHall && form.eventType && parseInt(guestCount) > 0 && (
           <CostEstimator
             eventType={form.eventType}
@@ -326,25 +375,36 @@ export default function BookingWidget({
           />
         )}
 
+        {/* Pay Button */}
         <Button
           type="submit"
           disabled={submitting}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-60"
+          className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-60 font-semibold"
         >
           {submitting ? (
-            <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Sending...</>
+            <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Processing...</>
           ) : user ? (
-            'Send Booking Request'
+            amountDisplay
+              ? `Pay ${amountDisplay} & Confirm Booking`
+              : 'Select a Hall to Pay'
           ) : (
             'Log in to Book'
           )}
         </Button>
 
-        <p className="text-xs text-gray-400 text-center">
-          {user
-            ? 'The venue will respond within 24 hours.'
-            : 'You need an account to make a booking.'}
-        </p>
+        {/* Trust badge */}
+        {user && (
+          <div className="flex items-center justify-center gap-1.5 text-xs text-gray-400">
+            <ShieldCheck className="h-3.5 w-3.5 text-green-500" />
+            Secured by Paystack · Cards, Bank Transfer, USSD
+          </div>
+        )}
+
+        {!user && (
+          <p className="text-xs text-gray-400 text-center">
+            You need an account to make a booking.
+          </p>
+        )}
       </form>
     </div>
   );
