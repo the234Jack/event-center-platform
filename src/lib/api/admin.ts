@@ -61,6 +61,37 @@ export async function rejectVenue(id: string) {
   if (error) throw error;
 }
 
+export async function deleteVenue(id: string) {
+  await supabase.from('bookings').delete().eq('venue_id', id);
+  await supabase.from('saved_venues').delete().eq('venue_id', id);
+  const { error } = await supabase.from('venues').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function fetchAllOwners() {
+  const { data: owners, error } = await supabase
+    .from('profiles')
+    .select('id, full_name, email, phone, state, lga, business_name, business_address, created_at')
+    .eq('role', 'owner')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  if (!owners || owners.length === 0) return [];
+
+  const ownerIds = owners.map((o) => o.id);
+  const { data: venues } = await supabase
+    .from('venues')
+    .select('id, name, city, state, verified, cover_image, max_capacity, price_from, owner_id, created_at')
+    .in('owner_id', ownerIds);
+
+  const venuesByOwner: Record<string, any[]> = {};
+  (venues ?? []).forEach((v) => {
+    if (!v.owner_id) return;
+    (venuesByOwner[v.owner_id] ??= []).push(v);
+  });
+
+  return owners.map((o) => ({ ...o, venues: venuesByOwner[o.id] ?? [] }));
+}
+
 export async function fetchAllUsers() {
   const { data, error } = await supabase
     .from('profiles')

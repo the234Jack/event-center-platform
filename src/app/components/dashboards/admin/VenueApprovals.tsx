@@ -1,9 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Building2, MapPin, Phone, Mail, Check, X, Eye } from 'lucide-react';
+import { Building2, MapPin, Phone, Mail, Check, X, Eye, Trash2 } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '../../ui/alert-dialog';
 import { toast } from 'sonner';
-import { fetchPendingVenues, fetchAllVenuesAdmin, approveVenue, rejectVenue } from '../../../../lib/api/admin';
+import { fetchPendingVenues, fetchAllVenuesAdmin, approveVenue, rejectVenue, deleteVenue } from '../../../../lib/api/admin';
 
 type Tab = 'pending' | 'all';
 
@@ -12,6 +16,7 @@ export default function VenueApprovals() {
   const [pending, setPending] = useState<any[]>([]);
   const [all, setAll] = useState<any[]>([]);
   const [selected, setSelected] = useState<any | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = () => {
@@ -43,6 +48,20 @@ export default function VenueApprovals() {
       setSelected(null);
     } catch {
       toast.error('Failed to reject venue.');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!pendingDelete) return;
+    try {
+      await deleteVenue(pendingDelete.id);
+      toast.success(`"${pendingDelete.name}" has been removed.`);
+      setPendingDelete(null);
+      setSelected(null);
+      load();
+    } catch (e) {
+      console.error('[admin] delete venue error:', e);
+      toast.error('Failed to remove venue.');
     }
   };
 
@@ -106,11 +125,11 @@ export default function VenueApprovals() {
               </div>
 
               {/* Actions */}
-              <div className="flex gap-2 flex-shrink-0">
+              <div className="flex gap-2 flex-shrink-0 flex-wrap">
                 <Button size="sm" variant="outline" onClick={() => setSelected(v)}>
                   <Eye className="h-3.5 w-3.5 mr-1" /> View
                 </Button>
-                {!v.verified && (
+                {!v.verified ? (
                   <>
                     <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleApprove(v.id)}>
                       <Check className="h-3.5 w-3.5 mr-1" /> Approve
@@ -119,6 +138,10 @@ export default function VenueApprovals() {
                       <X className="h-3.5 w-3.5 mr-1" /> Reject
                     </Button>
                   </>
+                ) : (
+                  <Button size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" onClick={() => setPendingDelete(v)}>
+                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove
+                  </Button>
                 )}
               </div>
             </div>
@@ -193,12 +216,35 @@ export default function VenueApprovals() {
                 </div>
               )}
               {selected.verified && (
-                <Button variant="outline" className="w-full" onClick={() => setSelected(null)}>Close</Button>
+                <div className="flex gap-3 pt-2">
+                  <Button variant="outline" className="flex-1" onClick={() => setSelected(null)}>Close</Button>
+                  <Button variant="outline" className="flex-1 text-red-600 border-red-200 hover:bg-red-50"
+                    onClick={() => setPendingDelete(selected)}>
+                    <Trash2 className="h-4 w-4 mr-1.5" /> Remove Venue
+                  </Button>
+                </div>
               )}
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this event center?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <span className="font-semibold">{pendingDelete?.name}</span>, all its halls, and any bookings or saved-venue records associated with it. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700 text-white">
+              Yes, remove venue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

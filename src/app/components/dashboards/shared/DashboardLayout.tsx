@@ -6,7 +6,7 @@ import { useAuth } from '../../../context/AuthContext';
 import {
   Building2, LogOut, Menu, LayoutDashboard, Calendar, Heart, User,
   ClipboardList, Users, BarChart3, Home, TrendingUp,
-  CheckSquare, BookOpen, Bell, Shield,
+  CheckSquare, BookOpen, Bell, Shield, Briefcase,
 } from 'lucide-react';
 import { cn } from '../../ui/utils';
 
@@ -41,6 +41,7 @@ const NAV_ITEMS: Record<Role, NavItem[]> = {
   admin: [
     { id: 'overview', label: 'Overview', icon: <LayoutDashboard className="h-4 w-4" /> },
     { id: 'venues', label: 'Venue Approvals', icon: <Building2 className="h-4 w-4" /> },
+    { id: 'owners', label: 'Owners', icon: <Briefcase className="h-4 w-4" /> },
     { id: 'users', label: 'User Management', icon: <Users className="h-4 w-4" /> },
     { id: 'staff', label: 'Staff Management', icon: <Shield className="h-4 w-4" /> },
   ],
